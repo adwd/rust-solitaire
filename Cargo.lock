@@ -2972,6 +2972,8 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "getrandom 0.3.4",
+ "naga",
+ "pollster",
  "rand",
  "solitaire-core",
  "web-time",

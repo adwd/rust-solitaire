@@ -2,6 +2,8 @@
 
 mod app;
 mod board;
+mod celebration;
+mod finish;
 mod input;
 mod theme;
 

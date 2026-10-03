@@ -148,6 +148,68 @@ impl Game {
         self.state.legal_actions()
     }
 
+    /// Prove a finish using only foundations and ordinary stock operations.
+    /// Hidden tableau cards defer automatic play. A failed proof changes nothing.
+    /// This is deliberately not a general-purpose solver or a best-move hint.
+    pub fn auto_finish_plan(&self) -> Option<Vec<Action>> {
+        if self.status() == Status::Won
+            || self
+                .state
+                .tableau
+                .iter()
+                .flatten()
+                .any(|card| !card.face_up)
+        {
+            return None;
+        }
+        let mut simulation = Self {
+            state: self.state.clone(),
+            history: History::default(),
+            seed: self.seed,
+            rules: self.rules,
+        };
+        let mut plan = Vec::new();
+        let mut recycles_without_progress = 0;
+        while simulation.status() != Status::Won {
+            let mut sources = vec![Source::Waste];
+            sources.extend(simulation.state.tableau.iter().enumerate().filter_map(
+                |(column, pile)| {
+                    pile.len()
+                        .checked_sub(1)
+                        .map(|index| Source::Tableau { column, index })
+                },
+            ));
+            let transfer = sources.into_iter().find_map(|from| {
+                (0..4)
+                    .map(|pile| Action::Move {
+                        from,
+                        to: Target::Foundation(pile),
+                    })
+                    .find(|action| simulation.validate(*action).is_ok())
+            });
+            let action = if let Some(transfer) = transfer {
+                recycles_without_progress = 0;
+                transfer
+            } else if !simulation.state.stock.is_empty() {
+                Action::Draw
+            } else if !simulation.state.waste.is_empty() {
+                recycles_without_progress += 1;
+                // The first recycle may follow a partial pass. A second pass
+                // without removing a card repeats the same stock/waste order.
+                if recycles_without_progress == 2 {
+                    return None;
+                }
+                Action::Recycle
+            } else {
+                return None;
+            };
+            simulation.apply(action).ok()?;
+            simulation.history = History::default();
+            plan.push(action);
+        }
+        Some(plan)
+    }
+
     /// Validation happens before any mutation, including history changes.
     pub fn apply(&mut self, action: Action) -> Result<Status, MoveError> {
         self.validate(action)?;

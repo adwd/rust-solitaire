@@ -14,5 +14,11 @@ web-time.workspace = true
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3.4", features = ["wasm_js"] }
 
+[dev-dependencies]
+naga = { version = "29", features = ["wgsl-in"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+pollster = "0.4"
+
 [lints]
 workspace = true

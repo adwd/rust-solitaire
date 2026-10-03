@@ -24,6 +24,55 @@ fn seed_six_wins_and_full_history_roundtrips() {
     assert_eq!(format!("{:?}", game.view()), complete);
 }
 
+#[test]
+fn ordinary_deal_can_finish_early_and_preserve_the_entire_history() {
+    let mut game = Game::new(6, Rules::default());
+    let initial = format!("{:?}", game.view());
+    let mut manual_moves = 0;
+    let mut plan = None;
+    for line in include_str!("fixtures/seed-6.moves").lines() {
+        game.apply(parse(line)).unwrap();
+        manual_moves += 1;
+        if let Some(finish) = game.auto_finish_plan() {
+            plan = Some(finish);
+            break;
+        }
+    }
+    let plan = plan.expect("a real deal becomes provably finishable before the last move");
+    assert!(manual_moves < 238);
+    assert!(
+        game.view()
+            .tableau
+            .iter()
+            .flatten()
+            .all(|card| card.face_up)
+    );
+    for action in &plan {
+        assert!(!matches!(
+            action,
+            Action::Move {
+                to: Target::Tableau(_),
+                ..
+            }
+        ));
+        game.apply(*action).unwrap();
+    }
+    assert_eq!(game.status(), Status::Won);
+    let final_state = format!("{:?}", game.view());
+    for _ in 0..manual_moves + plan.len() {
+        assert!(game.undo());
+    }
+    assert_eq!(format!("{:?}", game.view()), initial);
+    for _ in 0..manual_moves + plan.len() {
+        assert!(game.redo());
+    }
+    assert_eq!(format!("{:?}", game.view()), final_state);
+    eprintln!(
+        "Auto finish starts after {manual_moves} manual moves; {} automatic actions",
+        plan.len()
+    );
+}
+
 fn parse(line: &str) -> Action {
     match line {
         "D" => Action::Draw,

@@ -1,4 +1,4 @@
-use crate::{board, input::Interaction, theme};
+use crate::{board, celebration, finish::FinishAnimation, input::Interaction, theme};
 use eframe::egui::{self, Color32, Id, Key, Modifiers, RichText};
 use solitaire_core::{Action, DrawMode, Game, Rules, Source, Status, Target};
 use web_time::{Duration, Instant};
@@ -44,12 +44,20 @@ pub struct SolitaireApp {
     message: String,
     dialog: Option<Dialog>,
     victory_dismissed: bool,
+    finish: Option<FinishAnimation>,
+    celebration_started: Option<f64>,
 }
 
 impl SolitaireApp {
     pub fn new(cc: &eframe::CreationContext<'_>, seed: u64, rules: Rules) -> Self {
+        Self::with_game(cc, Game::new(seed, rules))
+    }
+
+    /// Embed a prepared core game with the same screen and controls.
+    pub fn with_game(cc: &eframe::CreationContext<'_>, game: Game) -> Self {
         theme::setup(&cc.egui_ctx);
         if let Some(render) = &cc.wgpu_render_state {
+            celebration::register(render);
             let adapter = render.adapter.get_info();
             eprintln!(
                 "rust-solitaire renderer: wgpu / {:?} / {}",
@@ -57,7 +65,7 @@ impl SolitaireApp {
             );
         }
         Self {
-            game: Game::new(seed, rules),
+            game,
             interaction: Interaction::default(),
             clock: Clock::default(),
             hint: None,
@@ -65,6 +73,8 @@ impl SolitaireApp {
             message: "Drag cards, or select a card and click its destination.".into(),
             dialog: None,
             victory_dismissed: false,
+            finish: None,
+            celebration_started: None,
         }
     }
 
@@ -76,16 +86,15 @@ impl SolitaireApp {
         self.hint_counter = 0;
         self.dialog = None;
         self.victory_dismissed = false;
+        self.finish = None;
+        self.celebration_started = None;
         self.message = "New game started.".into();
     }
 
-    fn apply(&mut self, action: Action) {
+    fn apply(&mut self, action: Action, now: f64) {
         match self.game.apply(action) {
-            Ok(status) => {
+            Ok(_) => {
                 self.clock.start();
-                if status == Status::Won {
-                    self.clock.stop();
-                }
                 self.hint = None;
                 self.hint_counter = 0;
                 self.interaction.clear();
@@ -94,6 +103,7 @@ impl SolitaireApp {
                     Action::Recycle => "Recycled the waste into the stock.".into(),
                     Action::Move { .. } => "Moved cards.".into(),
                 };
+                self.check_finish(now);
             }
             Err(error) => {
                 self.message = format!("Cannot move: {error}");
@@ -103,6 +113,8 @@ impl SolitaireApp {
 
     fn undo(&mut self) {
         if self.game.undo() {
+            self.finish = None;
+            self.celebration_started = None;
             self.interaction.clear();
             self.hint = None;
             self.hint_counter = 0;
@@ -112,16 +124,45 @@ impl SolitaireApp {
         }
     }
 
-    fn redo(&mut self) {
+    fn redo(&mut self, now: f64) {
         if self.game.redo() {
             self.interaction.clear();
             self.hint = None;
             self.hint_counter = 0;
             self.clock.start();
-            if self.game.status() == Status::Won {
-                self.clock.stop();
-            }
             self.message = "Redid one move.".into();
+            self.check_finish(now);
+        }
+    }
+
+    fn check_finish(&mut self, now: f64) {
+        if self.game.status() == Status::Won {
+            self.clock.stop();
+            self.celebration_started = Some(now);
+            self.message = "Deal complete. Nicely played!".into();
+        } else if let Some(plan) = self.game.auto_finish_plan() {
+            self.clock.stop();
+            self.interaction.clear();
+            self.hint = None;
+            self.finish = Some(FinishAnimation::new(plan, now));
+            self.message = "All set! Finishing your deal… Press Undo to take control.".into();
+        }
+    }
+
+    fn advance_finish(&mut self, layout: board::BoardLayout, now: f64) {
+        let Some(mut finish) = self.finish.take() else {
+            return;
+        };
+        match finish.advance(&mut self.game, layout, now) {
+            Ok(true) if self.game.status() == Status::Won => {
+                self.celebration_started = Some(now);
+                self.message = "Deal complete. Nicely played!".into();
+            }
+            Ok(false) => self.finish = Some(finish),
+            _ => {
+                self.clock.start();
+                self.message = "Automatic finish stopped. You can keep playing.".into();
+            }
         }
     }
 
@@ -205,7 +246,9 @@ impl SolitaireApp {
             return;
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z)) {
-            self.redo();
+            if self.finish.is_none() {
+                self.redo(ctx.input(|i| i.time));
+            }
         } else if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
             self.undo();
         }
@@ -303,28 +346,54 @@ impl SolitaireApp {
     }
 
     fn victory(&mut self, ctx: &egui::Context) {
-        if self.game.status() != Status::Won || self.victory_dismissed || self.dialog.is_some() {
+        if self.game.status() != Status::Won
+            || self.finish.is_some()
+            || self.victory_dismissed
+            || self.dialog.is_some()
+        {
             return;
         }
         let mut next = false;
         let mut back = false;
-        egui::Modal::new(Id::new("victory")).show(ctx, |ui| {
-            ui.set_width(360.0);
-            ui.label(RichText::new("COMPLETE").size(13.0).color(theme::GOLD));
-            ui.heading("You won!");
-            ui.add_space(8.0);
-            ui.label(format!(
-                "{} moves  |  {}  |  Seed {}",
-                self.game.view().moves,
-                format_time(self.clock.elapsed()),
-                self.game.view().seed
-            ));
-            ui.add_space(14.0);
-            ui.horizontal(|ui| {
-                next = ui.button("New game").clicked();
-                back = ui.button("View board").clicked();
+        egui::Modal::new(Id::new("victory"))
+            .backdrop_color(Color32::from_black_alpha(45))
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::CHROME)
+                    .corner_radius(16)
+                    .stroke(egui::Stroke::new(1.5, theme::GOLD))
+                    .inner_margin(24),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(400.0);
+                ui.vertical_centered(|ui| {
+                    ui.add_space(10.0);
+                    ui.label(
+                        RichText::new("D E A L   C O M P L E T E")
+                            .size(13.0)
+                            .color(theme::GOLD),
+                    );
+                    ui.label(
+                        RichText::new("You won!")
+                            .size(46.0)
+                            .strong()
+                            .color(theme::CREAM),
+                    );
+                    ui.label(RichText::new("52 cards. One great finish.").color(theme::MUTED));
+                });
+                ui.add_space(8.0);
+                ui.label(format!(
+                    "{} moves  |  {}  |  Seed {}",
+                    self.game.view().moves,
+                    format_time(self.clock.elapsed()),
+                    self.game.view().seed
+                ));
+                ui.add_space(14.0);
+                ui.horizontal(|ui| {
+                    next = ui.button("New game").clicked();
+                    back = ui.button("View board").clicked();
+                });
             });
-        });
         if next {
             self.new_dialog();
         }
@@ -337,6 +406,7 @@ impl SolitaireApp {
 impl eframe::App for SolitaireApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let now = ctx.input(|i| i.time);
         self.shortcuts(&ctx);
         egui::Panel::top("toolbar")
             .frame(
@@ -369,10 +439,16 @@ impl eframe::App for SolitaireApp {
                 ui.add_space(10.0);
                 ui.add_enabled_ui(self.dialog.is_none(), |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        if ui.button("New game").clicked() {
+                        if ui
+                            .add_enabled(self.finish.is_none(), egui::Button::new("New game"))
+                            .clicked()
+                        {
                             self.new_dialog();
                         }
-                        if ui.button("Restart").clicked() {
+                        if ui
+                            .add_enabled(self.finish.is_none(), egui::Button::new("Restart"))
+                            .clicked()
+                        {
                             self.restart();
                         }
                         ui.separator();
@@ -384,22 +460,28 @@ impl eframe::App for SolitaireApp {
                             self.undo();
                         }
                         if ui
-                            .add_enabled(self.game.can_redo(), egui::Button::new("Redo"))
+                            .add_enabled(
+                                self.finish.is_none() && self.game.can_redo(),
+                                egui::Button::new("Redo"),
+                            )
                             .on_hover_text("Cmd / Ctrl + Shift + Z")
                             .clicked()
                         {
-                            self.redo();
+                            self.redo(now);
                         }
                         if ui
                             .add_enabled(
-                                self.game.status() != Status::Won,
+                                self.finish.is_none() && self.game.status() != Status::Won,
                                 egui::Button::new("Hint"),
                             )
                             .clicked()
                         {
                             self.show_hint();
                         }
-                        if ui.button("How to play").clicked() {
+                        if ui
+                            .add_enabled(self.finish.is_none(), egui::Button::new("How to play"))
+                            .clicked()
+                        {
                             self.interaction.clear();
                             self.dialog = Some(Dialog::Help);
                         }
@@ -435,24 +517,48 @@ impl eframe::App for SolitaireApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::FELT).inner_margin(12))
             .show(ui, |ui| {
-                ui.add_enabled_ui(
-                    self.dialog.is_none() && self.game.status() != Status::Won,
-                    |ui| {
-                        egui::ScrollArea::vertical()
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                if let Some(action) =
-                                    board::show(ui, &self.game, &mut self.interaction, self.hint)
-                                {
-                                    self.apply(action);
-                                }
-                            });
-                    },
-                );
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let layout = board::layout(ui, &self.game);
+                        self.advance_finish(layout, now);
+                        let moving = self
+                            .finish
+                            .as_ref()
+                            .map_or_else(Vec::new, FinishAnimation::moving_cards);
+                        let action = ui
+                            .add_enabled_ui(
+                                self.dialog.is_none()
+                                    && self.finish.is_none()
+                                    && self.game.status() != Status::Won,
+                                |ui| {
+                                    board::show(
+                                        ui,
+                                        &self.game,
+                                        &mut self.interaction,
+                                        self.hint,
+                                        layout,
+                                        &moving,
+                                    )
+                                },
+                            )
+                            .inner;
+                        if let Some(action) = action {
+                            self.apply(action, now);
+                        }
+                        if let Some(finish) = &self.finish {
+                            finish.paint(ui, layout, now);
+                        }
+                    });
+                if let Some(started) = self.celebration_started {
+                    celebration::paint(ui, now - started);
+                }
             });
         self.dialogs(&ctx);
         self.victory(&ctx);
-        if self.clock.running.is_some() {
+        if self.finish.is_some() {
+            ctx.request_repaint();
+        } else if self.clock.running.is_some() {
             ctx.request_repaint_after(Duration::from_secs(1));
         }
     }
@@ -473,4 +579,147 @@ fn parse_seed(value: &str) -> Result<Option<u64>, &'static str> {
 fn format_time(duration: Duration) -> String {
     let seconds = duration.as_secs();
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture(moves: usize) -> Game {
+        let mut game = Game::new(6, Rules::default());
+        for line in include_str!("../../solitaire-core/tests/fixtures/seed-6.moves")
+            .lines()
+            .take(moves)
+        {
+            let action = match line {
+                "D" => Action::Draw,
+                "R" => Action::Recycle,
+                _ => {
+                    let (from, to) = line.split_once('>').unwrap();
+                    let source = if from == "W" {
+                        Source::Waste
+                    } else {
+                        let (column, index) = from[1..].split_once(':').unwrap();
+                        Source::Tableau {
+                            column: column.parse().unwrap(),
+                            index: index.parse().unwrap(),
+                        }
+                    };
+                    let target = to[1..].parse().unwrap();
+                    Action::Move {
+                        from: source,
+                        to: if to.starts_with('F') {
+                            Target::Foundation(target)
+                        } else {
+                            Target::Tableau(target)
+                        },
+                    }
+                }
+            };
+            game.apply(action).unwrap();
+        }
+        game
+    }
+
+    fn app(game: Game) -> SolitaireApp {
+        SolitaireApp {
+            game,
+            interaction: Interaction::default(),
+            clock: Clock {
+                elapsed: Duration::from_secs(91),
+                running: Some(Instant::now()),
+            },
+            hint: None,
+            hint_counter: 0,
+            message: String::new(),
+            dialog: None,
+            victory_dismissed: false,
+            finish: None,
+            celebration_started: None,
+        }
+    }
+
+    fn layout(game: &Game) -> board::BoardLayout {
+        let ctx = egui::Context::default();
+        let mut layout = None;
+        let _output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1100.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ui| layout = Some(board::layout(ui, game)),
+        );
+        layout.unwrap()
+    }
+
+    #[test]
+    fn clock_freezes_at_proof_and_victory_waits_for_the_last_flight() {
+        let mut app = app(fixture(208));
+        app.check_finish(10.0);
+        let frozen = app.clock.elapsed();
+        assert!(app.clock.running.is_none());
+        assert!(app.finish.is_some());
+        assert!(app.celebration_started.is_none());
+        let layout = layout(&app.game);
+        let mut saw_last_flight = false;
+        for frame in 0..100 {
+            app.advance_finish(layout, 10.0 + f64::from(frame) * 0.06);
+            assert_eq!(app.clock.elapsed(), frozen);
+            if app.game.status() == Status::Won && app.finish.is_some() {
+                saw_last_flight = true;
+                assert!(app.celebration_started.is_none());
+            }
+        }
+        assert!(saw_last_flight);
+        assert_eq!(app.game.status(), Status::Won);
+        assert!(app.finish.is_none());
+        assert!(app.celebration_started.is_some());
+        assert_eq!(app.game.view().moves, 234);
+    }
+
+    #[test]
+    fn undo_cancels_automatic_play_and_resumes_the_clock() {
+        let mut app = app(fixture(208));
+        app.check_finish(10.0);
+        let layout = layout(&app.game);
+        app.advance_finish(layout, 10.25);
+        assert_eq!(app.game.view().moves, 209);
+        app.undo();
+        assert_eq!(app.game.view().moves, 208);
+        assert!(app.finish.is_none());
+        assert!(app.celebration_started.is_none());
+        assert!(app.clock.running.is_some());
+        app.advance_finish(layout, 11.0);
+        assert_eq!(app.game.view().moves, 208);
+        app.redo(11.1);
+        assert!(app.finish.is_some());
+        assert!(app.clock.running.is_none());
+    }
+
+    #[test]
+    fn suspended_animation_does_not_skip_the_card_cascade() {
+        let mut app = app(fixture(208));
+        app.check_finish(1.0);
+        let layout = layout(&app.game);
+        app.advance_finish(layout, 100.0);
+        assert_eq!(app.game.view().moves, 209);
+        assert!(app.finish.is_some());
+        app.advance_finish(layout, 100.001);
+        assert_eq!(app.game.view().moves, 209);
+    }
+
+    #[test]
+    fn new_deal_resets_finish_effects_and_frozen_time() {
+        let mut app = app(fixture(208));
+        app.check_finish(10.0);
+        app.celebration_started = Some(10.0);
+        app.begin(42, DrawMode::Three);
+        assert!(app.finish.is_none());
+        assert!(app.celebration_started.is_none());
+        assert_eq!(app.clock.elapsed(), Duration::ZERO);
+        assert_eq!(app.game.view().moves, 0);
+    }
 }

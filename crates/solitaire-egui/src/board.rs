@@ -5,7 +5,7 @@ use crate::{
 use eframe::egui::{
     self, Align2, FontId, Id, LayerId, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2,
 };
-use solitaire_core::{Action, Card, Game, Source, Suit, Target};
+use solitaire_core::{Action, Card, Game, GameView, Source, Suit, Target};
 
 #[derive(Clone, Copy)]
 struct Hit {
@@ -16,32 +16,79 @@ struct Hit {
     stock: bool,
 }
 
-/// Render read-only game state; return a single command for the app to apply.
-pub fn show(
-    ui: &mut egui::Ui,
-    game: &Game,
-    interaction: &mut Interaction,
-    hint: Option<Action>,
-) -> Option<Action> {
-    let view = game.view();
-    let gap = 20.0;
-    let width = ((ui.available_width() - 48.0 - gap * 6.0) / 7.0).clamp(64.0, 116.0);
+/// Coordinates are shared by picking, drawing, and the automatic finish.
+#[derive(Clone, Copy)]
+pub(crate) struct BoardLayout {
+    area: Rect,
+    left: f32,
+    width: f32,
+    height: f32,
+    step: f32,
+    hidden_step: f32,
+    tableau_y: f32,
+}
+
+impl BoardLayout {
+    fn pos(self, column: usize, y: f32) -> Pos2 {
+        Pos2::new(
+            self.left + column as f32 * (self.width + 20.0),
+            self.area.min.y + y,
+        )
+    }
+
+    fn rect(self, column: usize, y: f32) -> Rect {
+        Rect::from_min_size(self.pos(column, y), Vec2::new(self.width, self.height))
+    }
+
+    pub fn foundation(self, index: usize) -> Rect {
+        self.rect(index + 3, 37.0)
+    }
+
+    pub fn source(self, view: GameView<'_>, source: Source) -> Rect {
+        match source {
+            Source::Waste => {
+                let shown = view.waste.len().min(view.rules.draw.count());
+                self.rect(1, 37.0).translate(Vec2::new(
+                    shown.saturating_sub(1) as f32 * self.width * 0.36,
+                    0.0,
+                ))
+            }
+            Source::Foundation(index) => self.foundation(index),
+            Source::Tableau { column, index } => {
+                let offset: f32 = view.tableau[column][..index]
+                    .iter()
+                    .map(|card| {
+                        if card.face_up {
+                            self.step
+                        } else {
+                            self.hidden_step
+                        }
+                    })
+                    .sum();
+                self.rect(column, self.tableau_y + offset)
+            }
+        }
+    }
+}
+
+fn pile_height(pile: &[solitaire_core::TableauCard], width: f32, height: f32) -> f32 {
+    pile.iter()
+        .take(pile.len().saturating_sub(1))
+        .map(|card| width * if card.face_up { 0.31 } else { 0.18 })
+        .sum::<f32>()
+        + height
+}
+
+pub(crate) fn layout(ui: &mut egui::Ui, game: &Game) -> BoardLayout {
+    let width = ((ui.available_width() - 48.0 - 20.0 * 6.0) / 7.0).clamp(64.0, 116.0);
     let height = width * 1.4;
-    let step = width * 0.31;
-    let hidden_step = width * 0.18;
     let tableau_y = height + 102.0;
-    let pile_height = |pile: &[solitaire_core::TableauCard]| {
-        pile.iter()
-            .take(pile.len().saturating_sub(1))
-            .map(|c| if c.face_up { step } else { hidden_step })
-            .sum::<f32>()
-            + height
-    };
     let content_height = (tableau_y
-        + view
+        + game
+            .view()
             .tableau
             .iter()
-            .map(|pile| pile_height(pile))
+            .map(|pile| pile_height(pile, width, height))
             .fold(height, f32::max)
         + 36.0)
         .max(ui.clip_rect().height());
@@ -49,10 +96,38 @@ pub fn show(
         Vec2::new(ui.available_width(), content_height),
         Sense::hover(),
     );
-    let left = area.min.x + (area.width() - (width * 7.0 + gap * 6.0)) / 2.0;
-    let pos =
-        |column: usize, y: f32| Pos2::new(left + column as f32 * (width + gap), area.min.y + y);
-    let rect = |column, y| Rect::from_min_size(pos(column, y), Vec2::new(width, height));
+    BoardLayout {
+        area,
+        left: area.min.x + (area.width() - (width * 7.0 + 20.0 * 6.0)) / 2.0,
+        width,
+        height,
+        step: width * 0.31,
+        hidden_step: width * 0.18,
+        tableau_y,
+    }
+}
+
+/// Render read-only state, keeping cards currently in flight out of foundations.
+pub(crate) fn show(
+    ui: &mut egui::Ui,
+    game: &Game,
+    interaction: &mut Interaction,
+    hint: Option<Action>,
+    layout: BoardLayout,
+    moving: &[Card],
+) -> Option<Action> {
+    let view = game.view();
+    let BoardLayout {
+        area,
+        width,
+        height,
+        step,
+        hidden_step,
+        tableau_y,
+        ..
+    } = layout;
+    let pos = |column, y| layout.pos(column, y);
+    let rect = |column, y| layout.rect(column, y);
     let mut painter = ui.painter_at(area);
     // Keep stacked cards opaque under a modal; its backdrop supplies the dimming.
     painter.set_opacity(1.0);
@@ -160,7 +235,7 @@ pub fn show(
             Some(Suit::ALL[index]),
             highlighted(target),
         );
-        if let Some(card) = pile.last()
+        if let Some(card) = pile.iter().rev().find(|card| !moving.contains(card))
             && !interaction
                 .drag
                 .is_some_and(|drag| drag.from == Source::Foundation(index))
@@ -260,7 +335,8 @@ pub fn show(
             y += spacing;
         }
         if highlighted(target) {
-            let outline = Rect::from_min_size(slot.min, Vec2::new(width, pile_height(pile)));
+            let outline =
+                Rect::from_min_size(slot.min, Vec2::new(width, pile_height(pile, width, height)));
             painter.rect_stroke(
                 outline.expand(3.0),
                 9.0,
@@ -494,7 +570,8 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    action = show(ui, &self.game, &mut self.interaction, None);
+                    let board = layout(ui, &self.game);
+                    action = show(ui, &self.game, &mut self.interaction, None, board, &[]);
                 },
             );
             if let Some(action) = action {

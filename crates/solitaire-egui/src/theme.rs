@@ -11,6 +11,7 @@ pub const MUTED: Color32 = Color32::from_rgb(151, 183, 167);
 pub const LEGAL: Color32 = Color32::from_rgb(134, 229, 174);
 
 pub fn setup(ctx: &egui::Context) {
+    ctx.set_theme(egui::ThemePreference::Dark);
     let mut visuals = egui::Visuals::dark();
     visuals.panel_fill = CHROME;
     visuals.window_fill = CHROME;
@@ -258,7 +259,7 @@ fn court(painter: &Painter, rect: Rect, card: Card, ink: Color32) {
         [p(0.473, 0.483), p(0.527, 0.483)],
         Stroke::new(1.0 * scale, ink),
     );
-    let name = match card.rank {
+    match card.rank {
         Rank::Jack => {
             // A beret and feather; a sword at the shoulder.
             polygon(
@@ -277,7 +278,6 @@ fn court(painter: &Painter, rect: Rect, card: Card, ink: Color32) {
                 [p(0.24, 0.64), p(0.34, 0.64)],
                 Stroke::new(2.0 * scale, gold),
             );
-            "JACK"
         }
         Rank::Queen => {
             // A jeweled tiara and flower.
@@ -292,7 +292,6 @@ fn court(painter: &Painter, rect: Rect, card: Card, ink: Color32) {
             for (x, y) in [(0.69, 0.58), (0.73, 0.58), (0.71, 0.605)] {
                 painter.circle_filled(p(x, y), 3.0 * scale, gold);
             }
-            "QUEEN"
         }
         Rank::King => {
             // A three-point crown, beard, and royal sceptre.
@@ -309,19 +308,15 @@ fn court(painter: &Painter, rect: Rect, card: Card, ink: Color32) {
                 Stroke::new(2.0 * scale, gold),
             );
             painter.circle_filled(p(0.71, 0.545), 4.0 * scale, gold);
-            "KING"
         }
         _ => unreachable!("only court cards use the court renderer"),
-    };
-    painter.text(
-        p(0.5, 0.751),
-        Align2::CENTER_CENTER,
-        name,
-        FontId::proportional(8.0 * scale),
-        ink,
-    );
-    // Court cards identify their suit with a single emblem on the robe.
-    suit(painter, p(0.5, 0.685), 10.0 * scale, card.suit, CREAM);
+    }
+    // One large, high-contrast badge makes same-color suits unmistakable.
+    // Corner ranks remain free of repeated suit marks.
+    let emblem = p(0.5, 0.675);
+    painter.circle_filled(emblem, 16.0 * scale, CREAM);
+    painter.circle_stroke(emblem, 16.0 * scale, Stroke::new(1.3 * scale, gold));
+    suit(painter, emblem, 25.0 * scale, card.suit, ink);
 }
 
 pub fn slot(painter: &Painter, rect: Rect, suit_id: Option<Suit>, highlighted: bool) {

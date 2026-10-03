@@ -108,6 +108,96 @@ fn initial_deal_and_determinism() {
 }
 
 #[test]
+fn auto_finish_waits_for_hidden_cards() {
+    for seed in 0..40 {
+        assert!(
+            Game::new(seed, Rules::default())
+                .auto_finish_plan()
+                .is_none()
+        );
+    }
+    let mut piles = columns();
+    piles[0] = vec![down(card(Suit::Clubs, Rank::King))];
+    let complete = Suit::ALL.map(|suit| {
+        Rank::ALL
+            .into_iter()
+            .filter(|rank| suit != Suit::Clubs || *rank != Rank::King)
+            .map(|rank| card(suit, rank))
+            .collect()
+    });
+    assert!(
+        fixture(piles, vec![], complete)
+            .auto_finish_plan()
+            .is_none()
+    );
+}
+
+#[test]
+fn auto_finish_proves_every_move_without_changing_state_or_history() {
+    let mut piles = columns();
+    for (index, suit) in Suit::ALL.into_iter().enumerate() {
+        piles[index].push(up(card(suit, Rank::King)));
+    }
+    let complete = Suit::ALL.map(|suit| {
+        Rank::ALL[..12]
+            .iter()
+            .map(|rank| card(suit, *rank))
+            .collect()
+    });
+    let mut game = fixture(piles, vec![], complete);
+    let before = game.state.clone();
+    let plan = game.auto_finish_plan().unwrap();
+    assert_eq!(plan.len(), 4);
+    assert_eq!(game.state, before);
+    assert!(!game.can_undo());
+    for action in &plan {
+        game.apply(*action).unwrap();
+    }
+    assert_eq!(game.status(), Status::Won);
+    assert!(game.auto_finish_plan().is_none());
+    for _ in &plan {
+        assert!(game.undo());
+    }
+    assert_eq!(game.state, before);
+    assert!(game.can_redo());
+    assert_eq!(game.auto_finish_plan(), Some(plan));
+    assert!(game.can_redo());
+}
+
+#[test]
+fn auto_finish_checks_draw_three_cycles_instead_of_assuming_face_up_means_won() {
+    let complete = Suit::ALL.map(|suit| {
+        Rank::ALL
+            .into_iter()
+            .filter(|rank| suit != Suit::Clubs || rank.value() < 10)
+            .map(|rank| card(suit, rank))
+            .collect()
+    });
+    let mut game = fixture(columns(), vec![], complete);
+    game.state.stock = [Rank::King, Rank::Queen, Rank::Jack, Rank::Ten]
+        .map(|rank| card(Suit::Clubs, rank))
+        .to_vec();
+    let game = Game::from_state(
+        game.state,
+        Rules {
+            draw: DrawMode::Three,
+        },
+    );
+    let before = game.state.clone();
+    assert!(game.auto_finish_plan().is_none());
+    assert_eq!(game.state, before);
+    assert!(!game.can_undo());
+    let mut game = Game::from_state(game.state, Rules::default());
+    let plan = game.auto_finish_plan().unwrap();
+    assert!(plan.contains(&Action::Draw));
+    for action in plan {
+        game.apply(action).unwrap();
+    }
+    assert_eq!(game.status(), Status::Won);
+    assert_invariants(&game);
+}
+
+#[test]
 fn sequence_move_flip_and_atomic_undo() {
     let mut piles = columns();
     piles[0] = vec![
