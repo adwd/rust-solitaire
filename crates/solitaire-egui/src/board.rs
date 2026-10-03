@@ -59,10 +59,8 @@ pub fn show(
     let mut hits = Vec::new();
     let mut targets = Vec::new();
     let selected = interaction.selected;
-    let highlighted = |target: Target| {
-        selected.is_some_and(|from| game.validate(Action::Move { from, to: target }).is_ok())
-            || matches!(hint, Some(Action::Move { to, .. }) if to == target)
-    };
+    let highlighted =
+        |target: Target| matches!(hint, Some(Action::Move { to, .. }) if to == target);
     let label = |column, text: &str| {
         painter.text(
             pos(column, 12.0),

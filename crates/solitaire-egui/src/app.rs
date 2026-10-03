@@ -424,9 +424,9 @@ impl eframe::App for SolitaireApp {
             )
             .show(ui, |ui| {
                 let text = if self.interaction.drag.is_some() {
-                    "Drop onto a highlighted pile. Press Esc to cancel."
+                    "Drop onto a pile. Press Esc to cancel."
                 } else if self.interaction.selected.is_some() {
-                    "Click a highlighted destination. Press Esc to clear your selection."
+                    "Click a destination. Press Esc to clear your selection."
                 } else {
                     &self.message
                 };
