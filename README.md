@@ -84,7 +84,25 @@ cargo tree -p solitaire-core --edges normal
 bash scripts/bundle-macos.sh
 ```
 
-`target/Rust Solitaire.app` を生成します。`bash scripts/bundle-macos.sh '/任意の出力先/Rust Solitaire.app'` で出力先を指定できます。ビルドしたマシンのアーキテクチャ向けのローカルアプリで、配布向けの署名と notarization は行いません。
+`target/Rust Solitaire.app` を生成します。`bash scripts/bundle-macos.sh '/任意の出力先/Rust Solitaire.app'` で出力先を指定できます。カードのアプリアイコンも生成し、アプリ全体を ad-hoc 署名します。`CARGO_TARGET_DIR` を指定したビルドにも対応します。
+
+### macOS インストール用 DMG
+
+```sh
+bash scripts/package-macos.sh
+```
+
+ビルドした Mac のアーキテクチャ向けに `target/rust-solitaire-0.1.0-arm64.dmg`（Apple Silicon の場合）と SHA-256 ファイルを生成します。出力先も指定できます。
+
+```sh
+bash scripts/package-macos.sh '/任意の出力先/rust-solitaire.dmg'
+```
+
+DMG を開き、`Rust Solitaire.app` を `Applications` にドラッグしてください。ディスクイメージを取り出したら、Applications から起動します。遊ぶ際に Rust や Cargo は不要です。macOS 11 以降が必要で、今回の検証済みパッケージは Apple Silicon 用です。
+
+パッケージ作成には Rust / Cargo、Python 3、Xcode Command Line Tools の Swift、および macOS 標準ツールを使います。アイコンは Swift / AppKit の図形で生成し、外部画像や追加の画像処理ライブラリは使いません。
+
+現在の DMG はローカル利用向けの ad-hoc 署名です。Developer ID 署名と notarization は行っていません。他の Mac にダウンロードして一般配布する場合は、Apple の [Developer ID 署名・公証](https://developer.apple.com/developer-id/) を行う必要があります。
 
 ## 初版の範囲
 
