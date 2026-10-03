@@ -1,8 +1,3 @@
-mod app;
-mod board;
-mod input;
-mod theme;
-
 use eframe::egui;
 use solitaire_core::{DrawMode, Rules};
 
@@ -33,7 +28,7 @@ fn main() -> eframe::Result {
             _ => invalid(&format!("unknown argument: {arg}")),
         }
     }
-    let seed = seed.unwrap_or_else(rand::random);
+    let seed = seed.unwrap_or_else(solitaire_egui::random_seed);
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         viewport: egui::ViewportBuilder::default()
@@ -53,7 +48,13 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Rust Solitaire",
         options,
-        Box::new(move |cc| Ok(Box::new(app::SolitaireApp::new(cc, seed, Rules { draw })))),
+        Box::new(move |cc| {
+            Ok(Box::new(solitaire_egui::SolitaireApp::new(
+                cc,
+                seed,
+                Rules { draw },
+            )))
+        }),
     )
 }
 

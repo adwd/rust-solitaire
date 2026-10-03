@@ -1,4 +1,4 @@
-# 初版の検証結果
+# Rust Solitaire の検証結果
 
 検証日: 2026年10月3日
 
@@ -86,3 +86,30 @@ macOS 標準のタイトルバーと閉じる・最小化・拡大ボタンを�
 Windows / Linux の実機、最小ウィンドウサイズへの縮小は未検証。Developer ID 署名と notarization は未実施。ゲームの保存・再開、解答ソルバー、自動完走、勝てる配札の保証は初版の範囲に含まない。
 
 テスト用の勝利手順は `crates/solitaire-core/tests/fixtures/seed-6.moves` に保存している。アプリが自動でその手順を実行する機能はない。
+
+## Web とネイティブの共通構成
+
+2026年10月3日の追加依頼により、画面非依存のコア、共通 egui UI、デスクトップ起動、Web 起動の4クレートに分割した。既存のカード描画と入力処理は共通 UI に移し、タイマーを `web-time` に変更した。Web の乱数取得は `getrandom` の `wasm_js` を使う。デスクトップの CLI と標準ウィンドウ設定は起動クレートで維持している。
+
+以下の検証が成功した。
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo build --release --locked -p solitaire-desktop
+cargo clippy --locked -p solitaire-web --target wasm32-unknown-unknown -- -D warnings
+bash scripts/build-web.sh
+bash -n scripts/build-web.sh scripts/bundle-macos.sh scripts/package-macos.sh
+```
+
+- 既存の20件のテストが分割後も成功。デスクトップ実行ファイルの `--help` も成功。
+- WASM リリースビルドから静的サイトを生成。WASM 本体は約8.5 MiB、JavaScript は約140 KiB。
+- Pages と同じ `/rust-solitaire/` のサブパスでブラウザを起動し、WASM と静的ファイルの相対パスを確認。
+- macOS のブラウザでシード6の1枚めくりを開始。7C → 8H のドラッグ、Cmd+Z と Cmd+Shift+Z、AH の組札へのダブルクリック、2D → 3C のクリック移動、3C / 2D → 4D の連続列ドラッグを確認。
+- 操作に応じた手数・組札枚数・経過時間の更新を確認。ブラウザのエラーログはなし。
+- シード42の3枚めくりで山札が24 → 21枚となり、8回の Draw の後に再巡回すると山札24枚・捨て札なしに戻ることを確認。
+
+今回の構成変更に伴う macOS の画面キャプチャは実施せず、ネイティブ版は自動検証とリリースビルドで確認した。初版の実画面確認は上記の記録を参照。
+
+GitHub Actions では macOS のチェック・テスト・ネイティブビルドと、Linux の WASM チェック・ビルドが両方成功した後に Pages へ公開する。Web は幅760ピクセル以上の盤面を前提とし、モバイル専用の画面設計、すべてのブラウザの動作保証、進行中ゲームの保存は対象外。

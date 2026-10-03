@@ -1,7 +1,7 @@
 use crate::{board, input::Interaction, theme};
 use eframe::egui::{self, Color32, Id, Key, Modifiers, RichText};
 use solitaire_core::{Action, DrawMode, Game, Rules, Source, Status, Target};
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 #[derive(Default)]
 struct Clock {
@@ -254,7 +254,7 @@ impl SolitaireApp {
                         if ui.button("Start game").clicked() {
                             match parse_seed(seed) {
                                 Ok(seed) => {
-                                    start = Some((seed.unwrap_or_else(rand::random), *draw))
+                                    start = Some((seed.unwrap_or_else(crate::random_seed), *draw))
                                 }
                                 Err(reason) => *error = Some(reason.into()),
                             }

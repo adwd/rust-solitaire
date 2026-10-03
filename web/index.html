@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#112a25">
+    <meta name="description" content="Play Klondike Solitaire in your browser. Draw one or three, undo moves, and try reproducible deals.">
+    <title>Rust Solitaire</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./style.css">
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body data-state="loading">
+    <main>
+      <canvas id="game" aria-label="Rust Solitaire game board"></canvas>
+      <div id="startup" role="status" aria-live="polite">
+        <h1>Rust Solitaire</h1>
+        <p id="startup-message">Loading the game…</p>
+      </div>
+    </main>
+    <noscript>Rust Solitaire requires JavaScript and WebAssembly.</noscript>
+  </body>
+</html>

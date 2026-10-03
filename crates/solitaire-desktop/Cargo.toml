@@ -1,0 +1,18 @@
+[package]
+name = "solitaire-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Native desktop host for Rust Solitaire"
+
+[[bin]]
+name = "rust-solitaire"
+path = "src/main.rs"
+
+[dependencies]
+solitaire-core.workspace = true
+solitaire-egui.workspace = true
+eframe = { workspace = true, features = ["accesskit", "x11", "wayland"] }
+
+[lints]
+workspace = true

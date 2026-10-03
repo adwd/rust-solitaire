@@ -2,9 +2,9 @@
 
 作成日: 2026年10月3日
 
-状態: 2026年10月3日に合意し、初版の実装と検証を完了。リポジトリ名は rust-solitaire。検証結果は [VALIDATION.md](VALIDATION.md) を参照。
+状態: 2026年10月3日に合意し、macOS 初版の実装と検証を完了。同日の追加依頼で Web とネイティブの共通構成、GitHub へのプッシュ、GitHub Pages での公開を承認。リポジトリ名は rust-solitaire。検証結果は [VALIDATION.md](VALIDATION.md) を参照。
 
-Rust でクロンダイクのソリティアを作る。ゲームの状態とルールを扱う画面非依存のライブラリと、そのライブラリを使う GPU 描画のデスクトップアプリを Cargo workspace 内の別クレートに分ける。初版は macOS で快適に一通り遊べることを完成条件とする。
+Rust でクロンダイクのソリティアを作る。ゲームの状態とルールを扱う画面非依存のライブラリ、GPU 描画の共通 UI、デスクトップ起動、Web 起動を Cargo workspace 内の別クレートに分ける。macOS とブラウザで同じルール・画面・操作を使って遊べることを完成条件とする。
 
 ## 合意した仕様
 
@@ -12,11 +12,11 @@ Rust でクロンダイクのソリティアを作る。ゲームの状態とル
 | --- | --- |
 | リポジトリ名 | `rust-solitaire` |
 | 配置先 | `/Users/nishidamasahiro/ghq/github.com/adwd/rust-solitaire` |
-| リポジトリ | まずローカル Git リポジトリとして作成。GitHub のリモート作成と公開範囲は別途決定 |
+| リポジトリ | `adwd/rust-solitaire` に公開し、GitHub Pages で Web 版をホスト |
 | ゲーム | クロンダイク。1枚めくりを既定に、3枚めくりも選択可能 |
 | GUI | `egui` + `eframe`、描画バックエンドは `wgpu` を明示的に使用 |
-| クレート | `solitaire-core` と `solitaire-egui` の2つ |
-| 動作対象 | 初版の実機確認は macOS。他のデスクトップ OS に移植しやすい構成にする |
+| クレート | `solitaire-core`、共有 UI の `solitaire-egui`、起動用の `solitaire-desktop` と `solitaire-web` |
+| 動作対象 | macOS ネイティブと WASM の Web 版。他のデスクトップ OS に移植しやすい構成にする |
 | 基本操作 | ドラッグ、クリック選択と移動、組札へのダブルクリック移動 |
 | 補助機能 | Undo / Redo、ヒント、新規ゲーム、同じ配札で再挑戦、シード指定 |
 
@@ -71,17 +71,25 @@ rust-solitaire/
     │       ├── rules.rs       # 合法手の判定と列挙
     │       ├── action.rs      # 操作とエラー
     │       └── history.rs     # Undo / Redo
-    └── solitaire-egui/
+    ├── solitaire-egui/
         ├── Cargo.toml
         └── src/
-            ├── main.rs       # eframe 起動と GPU 設定
+            ├── lib.rs        # 共通 UI の公開 API
             ├── app.rs        # コアと GUI の接続
             ├── board.rs      # 盤面レイアウトと描画
             ├── input.rs      # 選択、ドラッグ、ショートカット
             └── theme.rs      # 配色とカードの見た目
+    ├── solitaire-desktop/
+    │   ├── Cargo.toml
+    │   └── src/main.rs       # CLI、標準ウィンドウ、ネイティブ起動
+    └── solitaire-web/
+        ├── Cargo.toml
+        └── src/lib.rs        # WASM、canvas、WebRunner の起動と終了
 ```
 
-依存方向は `solitaire-egui` → `solitaire-core` の一方向とする。コアは GUI、ウィンドウ、GPU、画面座標、入力デバイスの型に依存しない。将来の GUI 差し替えは別の利用側クレートで行えるようにし、現時点で汎用的な GUI 抽象化レイヤーは追加しない。
+依存方向は両起動クレート → `solitaire-egui` → `solitaire-core` の一方向とする。コアは GUI、ウィンドウ、GPU、画面座標、入力デバイスの型に依存しない。将来の GUI 差し替えは別の利用側クレートで行えるようにし、現時点で汎用的な GUI 抽象化レイヤーは追加しない。
+
+Web 起動は `eframe::WebRunner` と `wasm-bindgen` を使う。共通 UI の時計は `web-time`、WASM の乱数はブラウザのエントロピーを使う。ネイティブ機能と WebGPU / WebGL 機能は各起動クレートで指定し、ネイティブ版は Metal、Web 版は WebGPU と WebGL のフォールバックで描画する。HTML、CSS、JavaScript は `web/`、静的サイト生成は `scripts/build-web.sh` に置く。CI は両版を検証してから Pages へ公開する。
 
 ### コアが担当するもの
 
@@ -139,15 +147,16 @@ rust-solitaire/
 
 ## 初版に含めない機能
 
-別ルールのソリティア、解答ソルバー、勝てる配札の保証、自動完走、スコア方式やランキング、対戦、サウンド、凝ったアニメーション、ゲーム保存と再開、Web やモバイル向け配布は後続の拡張候補とする。まずコアを再利用でき、デスクトップで一局を最後まで遊べることに集中する。
+別ルールのソリティア、解答ソルバー、勝てる配札の保証、自動完走、スコア方式やランキング、対戦、サウンド、凝ったアニメーション、ゲーム保存と再開、モバイル専用の操作・画面設計は後続の拡張候補とする。
 
 ## 実装の順序
 
-1. **構成と起動を確認する。** 合意した workspace と2クレートを作り、依存バージョンを確定する。最小ウィンドウで `wgpu` による起動を確認する。
+1. **構成と起動を確認する。** 合意した workspace とコア・GUI を作り、依存バージョンを確定する。最小ウィンドウで `wgpu` による起動を確認する。
 2. **コアを実装する。** カード、配札、1枚／3枚めくり、すべての移動規則、勝利判定、履歴を実装し、画面なしで検証する。
 3. **基本操作をつなぐ。** 盤面を描画し、クリック移動、山札操作、組札への移動でゲームが進む状態を作る。
 4. **操作性を仕上げる。** 連続列のドラッグ、明示的なヒント表示、Undo / Redo、再挑戦、シード指定、勝利画面、リサイズを整える。
 5. **検証と説明を完成させる。** 自動検証と macOS 上の実操作を行い、起動方法、操作方法、既知の制限を README にまとめる。
+6. **承認済みの Web 拡張。** 共通 UI と両起動クレートへ分割し、WASM とブラウザの操作を検証する。公開リポジトリを作り、両版の CI と GitHub Pages 公開を設定して、公開 URL でも起動を確認する。
 
 承認済みの範囲内で実装を進める。ゲーム種別や GUI ライブラリの変更など、計画の根本に関わる変更が必要な場合は理由と変更案を提示する。
 
@@ -170,8 +179,10 @@ rust-solitaire/
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo build --release -p solitaire-egui
-cargo run -p solitaire-egui
+cargo build --release -p solitaire-desktop
+cargo run --release
+cargo clippy -p solitaire-web --target wasm32-unknown-unknown --locked -- -D warnings
+bash scripts/build-web.sh
 ```
 
 完成には、これらのチェックに加えて macOS 上で GPU 描画、ドラッグとクリック、連続列の移動、山札の再巡回、履歴、再挑戦、勝利、リサイズを実際に確認する。重なったカードの選択、ドラッグの解除、英語とスートの表示も対象にする。GPU が必要な確認とコアだけの自動テストは分け、確認できなかった環境は明記する。
@@ -180,6 +191,4 @@ cargo run -p solitaire-egui
 
 ## 合意する内容
 
-この計画を承認する場合、`rust-solitaire` という名前、クロンダイクの1枚／3枚めくり、`egui + eframe + wgpu`、独立したコアと GUI の2クレート、macOS を対象とした初版の範囲に合意したものとして実装を開始する。
-
-変更したい項目がある場合は、この計画書を更新してから実装に進む。
+初版は `rust-solitaire`、クロンダイクの1枚／3枚めくり、`egui + eframe + wgpu`、独立したコアと GUI、macOS を対象として合意済み。追加依頼により、共通 UI と起動処理を4クレートに分け、Web 版を実装し、GitHub へのプッシュと GitHub Pages での公開まで進める。

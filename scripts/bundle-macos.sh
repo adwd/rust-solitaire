@@ -5,7 +5,7 @@ if [ "$(uname -s)" != Darwin ]; then
     echo 'This bundle script requires macOS.' >&2
     exit 1
 fi
-cargo build --release --locked -p solitaire-egui
+cargo build --release --locked -p solitaire-desktop
 bundle_path="${1:-target/Rust Solitaire.app}"
 icon_work="$(mktemp -d "${TMPDIR:-/tmp}/rust-solitaire-icon.XXXXXX")"
 trap 'rm -rf "$icon_work"' EXIT
@@ -23,7 +23,7 @@ import sys
 metadata = json.loads(subprocess.check_output([
     'cargo', 'metadata', '--format-version', '1', '--no-deps', '--locked'
 ]))
-version = next(p['version'] for p in metadata['packages'] if p['name'] == 'solitaire-egui')
+version = next(p['version'] for p in metadata['packages'] if p['name'] == 'solitaire-desktop')
 bundle = Path(sys.argv[1]).resolve()
 if bundle.suffix != '.app':
     raise SystemExit('The bundle output path must end in .app')

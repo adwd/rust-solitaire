@@ -1,22 +1,24 @@
 # Rust Solitaire
 
-Rust 製のクロンダイク。`egui` と `eframe` を使い、`wgpu` で描画するデスクトップゲームです。画面に依存しないコアを独立したクレートにしています。UI は英語です。
+Rust 製のクロンダイク。`egui` と `eframe` を使い、`wgpu` で描画します。WebAssembly の Web 版と macOS ネイティブ版で同じ画面と操作を共有し、ゲームのコアは画面に依存しない独立したクレートです。UI は英語です。
+
+**Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)
 
 ## 起動
 
-Rust 1.94 以降が必要です。macOS での実行を対象にしています。
+`rust-toolchain.toml` で Rust 1.94.0 を指定しています。ネイティブ版の実機確認は macOS で行っています。
 
 ウィンドウは macOS 標準のタイトルバーと、閉じる・最小化・拡大の3つのボタンを使います。
 
 ```sh
 cd ~/ghq/github.com/adwd/rust-solitaire
-cargo run --release -p solitaire-egui
+cargo run --release
 ```
 
 配札を再現したい場合はシードを指定できます。
 
 ```sh
-cargo run --release -p solitaire-egui -- --seed 42 --draw 3
+cargo run --release -- --seed 42 --draw 3
 ```
 
 `--draw` は `1` または `3`。省略時は1枚めくりです。シードは符号なし64ビット整数で、省略時はランダムです。`--help` で引数を確認できます。
@@ -46,7 +48,11 @@ cargo run --release -p solitaire-egui -- --seed 42 --draw 3
 | クレート | 責務 |
 | --- | --- |
 | `solitaire-core` | カード、配札、ルール、合法手、勝利判定、履歴。GUI・GPU・時計・ファイル I/O への依存を持ちません |
-| `solitaire-egui` | `rust-solitaire` 実行ファイル。描画、座標から操作への変換、設定とシード取得、経過時間を扱います |
+| `solitaire-egui` | 共通 UI ライブラリ。カード描画、入力、設定、ヒント、経過時間を扱います |
+| `solitaire-desktop` | `rust-solitaire` 実行ファイル。CLI、OS 標準ウィンドウ、ネイティブ起動を扱います |
+| `solitaire-web` | WASM ライブラリ。ブラウザの canvas と `WebRunner` の起動・終了を扱います |
+
+依存方向は両方の起動クレート → `solitaire-egui` → `solitaire-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
 
 GUI は読み取り用の `Game::view()` を使い、変更は `Game::apply(Action)` を通します。無効な操作は盤面・手数・Undo / Redo 履歴を変更しません。ドラッグ中もコアは変えず、ドロップ時に操作を確定します。
 
@@ -68,7 +74,8 @@ assert_eq!(game.view().stock.len(), 24);
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
-cargo build --release -p solitaire-egui --locked
+cargo build --release -p solitaire-desktop --locked
+cargo clippy -p solitaire-web --target wasm32-unknown-unknown --locked -- -D warnings
 ```
 
 コアだけのテストにはウィンドウや GPU は必要ありません。
@@ -79,6 +86,18 @@ cargo tree -p solitaire-core --edges normal
 ```
 
 ルールの境界条件、再巡回の順序、無効操作、勝利と履歴を検証します。プロパティテストでは複数のシードと操作列で52枚の不変条件と履歴の往復を確認します。GUI の入力テストは実際の egui のポインターイベントでクリックとドラッグを検証します。
+
+## Web 版のビルドと公開
+
+```sh
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+bash scripts/build-web.sh
+python3 -m http.server 8080 --directory dist
+```
+
+`http://localhost:8080/` で遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させ、ビルドスクリプトでも確認します。生成先は `dist/` で、HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームは失われます。
+
+`.github/workflows/pages.yml` は macOS 上のテストとネイティブビルド、Linux 上の WASM ビルドを行います。両方が成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
 
 ## macOS アプリの作成
 
@@ -108,7 +127,7 @@ DMG を開き、`Rust Solitaire.app` を `Applications` にドラッグしてく
 
 ## 初版の範囲
 
-ゲームの保存と再開、解答ソルバー、自動完走、勝てる配札の保証、スコア方式、サウンド、Web やモバイル向け配布は含みません。終了すると進行中のゲームは失われます。Windows / Linux の実機動作は未検証です。
+ゲームの保存と再開、解答ソルバー、自動完走、勝てる配札の保証、スコア方式、サウンド、モバイル専用の操作・画面設計は含みません。Web の盤面は幅760ピクセル以上の表示領域を前提とします。終了すると進行中のゲームは失われます。Windows / Linux のネイティブ実機動作は未検証です。
 
 計画は [docs/PLAN.md](docs/PLAN.md)、実際の検証結果は [docs/VALIDATION.md](docs/VALIDATION.md) に記載しています。
 
@@ -117,6 +136,8 @@ DMG を開き、`Rust Solitaire.app` を `Applications` にドラッグしてく
 - [egui と eframe](https://github.com/emilk/egui)
 - [wgpu](https://github.com/gfx-rs/wgpu)
 - [rand と rand_chacha](https://github.com/rust-random/rand)
+- [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen)
+- [web-time](https://github.com/daxpedda/web-time)
 - [proptest](https://github.com/proptest-rs/proptest)
 
 カードの柄と絵札はこのアプリ内で図形として描画しています。外部のカード画像や OS フォントは同梱しません。
