@@ -39,6 +39,12 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("Rust Solitaire")
             .with_app_id("adwd.rust-solitaire")
+            .with_decorations(true)
+            .with_titlebar_shown(true)
+            .with_titlebar_buttons_shown(true)
+            .with_close_button(true)
+            .with_minimize_button(true)
+            .with_maximize_button(true)
             .with_inner_size([1100.0, 800.0])
             .with_min_inner_size([760.0, 540.0]),
         centered: true,

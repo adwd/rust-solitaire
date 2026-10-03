@@ -6,6 +6,8 @@ Rust 製のクロンダイク。`egui` と `eframe` を使い、`wgpu` で描画
 
 Rust 1.94 以降が必要です。macOS での実行を対象にしています。
 
+ウィンドウは macOS 標準のタイトルバーと、閉じる・最小化・拡大の3つのボタンを使います。
+
 ```sh
 cd ~/ghq/github.com/adwd/rust-solitaire
 cargo run --release -p solitaire-egui
