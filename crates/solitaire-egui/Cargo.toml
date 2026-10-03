@@ -1,0 +1,18 @@
+[package]
+name = "solitaire-egui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "GPU-rendered Klondike desktop game"
+
+[[bin]]
+name = "rust-solitaire"
+path = "src/main.rs"
+
+[dependencies]
+solitaire-core.workspace = true
+eframe.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
+
+[lints]
+workspace = true
