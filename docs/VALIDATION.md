@@ -109,7 +109,16 @@ bash -n scripts/build-web.sh scripts/bundle-macos.sh scripts/package-macos.sh
 - macOS のブラウザでシード6の1枚めくりを開始。7C → 8H のドラッグ、Cmd+Z と Cmd+Shift+Z、AH の組札へのダブルクリック、2D → 3C のクリック移動、3C / 2D → 4D の連続列ドラッグを確認。
 - 操作に応じた手数・組札枚数・経過時間の更新を確認。ブラウザのエラーログはなし。
 - シード42の3枚めくりで山札が24 → 21枚となり、8回の Draw の後に再巡回すると山札24枚・捨て札なしに戻ることを確認。
+- Chrome でも起動・カード描画・山札操作が成功し、ブラウザのエラーログがないことを確認。
+- 共通構成から macOS アプリと DMG を再生成。`hdiutil verify`、アプリの `codesign --verify --strict`、DMG の SHA-256 照合が成功。
 
 今回の構成変更に伴う macOS の画面キャプチャは実施せず、ネイティブ版は自動検証とリリースビルドで確認した。初版の実画面確認は上記の記録を参照。
 
 GitHub Actions では macOS のチェック・テスト・ネイティブビルドと、Linux の WASM チェック・ビルドが両方成功した後に Pages へ公開する。Web は幅760ピクセル以上の盤面を前提とし、モバイル専用の画面設計、すべてのブラウザの動作保証、進行中ゲームの保存は対象外。
+
+### GitHub Pages での公開検証
+
+- [実装コミットの GitHub Actions](https://github.com/adwd/rust-solitaire/actions/runs/37125834188) で macOS、WebAssembly、Pages デプロイの全ジョブが成功。
+- リポジトリは [adwd/rust-solitaire](https://github.com/adwd/rust-solitaire)、公開先は [GitHub Pages](https://adwd.github.io/rust-solitaire/)。Pages のビルド方式は GitHub Actions、HTTPS は有効。
+- 公開 URL を Codex 内蔵ブラウザと Chrome で開き、ローディングからゲーム画面への遷移、WASM 読み込み、カードと英語 UI の描画を確認。ブラウザのエラーログはなし。
+- 公開版の山札操作で24 → 23枚、手数0 → 1を確認。AS のダブルクリックで Spades の組札へ移動し、手数2・組札1 / 52・裏札の表返しを確認。
