@@ -1,0 +1,10 @@
+Rust Solitaire
+
+1. Drag Rust Solitaire.app to Applications.
+2. Eject the Rust Solitaire disk image.
+3. Open Rust Solitaire from Applications.
+
+Requires macOS 11 or later and a compatible Mac architecture.
+Rust and Cargo are not required to play.
+
+This local build is ad-hoc signed. It is not Developer ID signed or notarized.

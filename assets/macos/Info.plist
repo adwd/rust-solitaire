@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Rust Solitaire</string>
+    <key>CFBundleDisplayName</key>
+    <string>Rust Solitaire</string>
+    <key>CFBundleIdentifier</key>
+    <string>adwd.rust-solitaire</string>
+    <key>CFBundleExecutable</key>
+    <string>rust-solitaire</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
+</dict>
+</plist>

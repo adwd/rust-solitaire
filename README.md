@@ -92,21 +92,23 @@ cargo tree -p solitaire-core --edges normal
 
 ```sh
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
-bash scripts/build-web.sh
-python3 -m http.server 8080 --directory dist
+cargo build --release --locked --target wasm32-unknown-unknown -p solitaire-web --target-dir target
+mkdir -p dist/pkg
+wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/solitaire_web.wasm
+cp -R web/. dist/
 ```
 
-`http://localhost:8080/` で遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させ、ビルドスクリプトでも確認します。生成先は `dist/` で、HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームは失われます。
+生成した `dist/` を静的 HTTP サーバーで配信すると、ローカルでも遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させます。出力先は `--target-dir target` で明示し、Python や Cargo メタデータの解析は使いません。`dist/` は HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームは失われます。
 
-`.github/workflows/pages.yml` は macOS 上のテストとネイティブビルド、Linux 上の WASM ビルドを行います。両方が成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
+`.github/workflows/pages.yml` 内に Web のビルド・ファイル配置・Pages 公開をまとめています。macOS 上のテストとアプリ作成、Linux 上の WASM ビルドが両方成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
 
 ## macOS アプリの作成
 
 ```sh
-bash scripts/bundle-macos.sh
+bash scripts/package-macos.sh 'target/Rust Solitaire.app'
 ```
 
-`target/Rust Solitaire.app` を生成します。`bash scripts/bundle-macos.sh '/任意の出力先/Rust Solitaire.app'` で出力先を指定できます。カードのアプリアイコンも生成し、アプリ全体を ad-hoc 署名します。`CARGO_TARGET_DIR` を指定したビルドにも対応します。
+`target/Rust Solitaire.app` を生成します。末尾が `.app` の任意の出力先も指定できます。アイコンと plist は `assets/macos/` の固定アセットを使い、アプリ全体を ad-hoc 署名します。バイナリの出力先は `CARGO_TARGET_DIR`、省略時は `target` です。パッケージのバージョンは workspace の `Cargo.toml` から取得します。
 
 ### macOS インストール用 DMG
 
@@ -122,7 +124,7 @@ bash scripts/package-macos.sh '/任意の出力先/rust-solitaire.dmg'
 
 DMG を開き、`Rust Solitaire.app` を `Applications` にドラッグしてください。ディスクイメージを取り出したら、Applications から起動します。遊ぶ際に Rust や Cargo は不要です。macOS 11 以降が必要で、今回の検証済みパッケージは Apple Silicon 用です。
 
-パッケージ作成には Rust / Cargo、Python 3、Xcode Command Line Tools の Swift、および macOS 標準ツールを使います。アイコンは Swift / AppKit の図形で生成し、外部画像や追加の画像処理ライブラリは使いません。
+パッケージ作成には Rust / Cargo と macOS 標準ツールを使います。plist のバージョン設定は `PlistBuddy`、署名は `codesign`、DMG は `hdiutil`、SHA-256 は `shasum` で処理します。Python・Swift・アイコンの都度生成は不要です。アプリと DMG の作成は1本のスクリプトにまとめています。
 
 現在の DMG はローカル利用向けの ad-hoc 署名です。Developer ID 署名と notarization は行っていません。他の Mac にダウンロードして一般配布する場合は、Apple の [Developer ID 署名・公証](https://developer.apple.com/developer-id/) を行う必要があります。
 

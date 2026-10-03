@@ -89,7 +89,7 @@ rust-solitaire/
 
 依存方向は両起動クレート → `solitaire-egui` → `solitaire-core` の一方向とする。コアは GUI、ウィンドウ、GPU、画面座標、入力デバイスの型に依存しない。将来の GUI 差し替えは別の利用側クレートで行えるようにし、現時点で汎用的な GUI 抽象化レイヤーは追加しない。
 
-Web 起動は `eframe::WebRunner` と `wasm-bindgen` を使う。共通 UI の時計は `web-time`、WASM の乱数はブラウザのエントロピーを使う。ネイティブ機能と WebGPU / WebGL 機能は各起動クレートで指定し、ネイティブ版は Metal、Web 版は WebGPU と WebGL のフォールバックで描画する。HTML、CSS、JavaScript は `web/`、静的サイト生成は `scripts/build-web.sh` に置く。CI は両版を検証してから Pages へ公開する。
+Web 起動は `eframe::WebRunner` と `wasm-bindgen` を使う。共通 UI の時計は `web-time`、WASM の乱数はブラウザのエントロピーを使う。ネイティブ機能と WebGPU / WebGL 機能は各起動クレートで指定し、ネイティブ版は Metal、Web 版は WebGPU と WebGL のフォールバックで描画する。HTML、CSS、JavaScript は `web/` に置く。Web ビルドと静的ファイルの配置は GitHub Actions 内のコマンドで行い、両版の検証後に Pages へ公開する。Python による Cargo メタデータの解析は使わない。
 
 ### コアが担当するもの
 
@@ -192,7 +192,7 @@ cargo test --workspace
 cargo build --release -p solitaire-desktop
 cargo run --release
 cargo clippy -p solitaire-web --target wasm32-unknown-unknown --locked -- -D warnings
-bash scripts/build-web.sh
+cargo build --release --locked --target wasm32-unknown-unknown -p solitaire-web --target-dir target
 ```
 
 完成には、これらのチェックに加えて macOS 上で GPU 描画、ドラッグとクリック、連続列の移動、山札の再巡回、履歴、再挑戦、勝利、リサイズを実際に確認する。重なったカードの選択、ドラッグの解除、英語とスートの表示も対象にする。GPU が必要な確認とコアだけの自動テストは分け、確認できなかった環境は明記する。

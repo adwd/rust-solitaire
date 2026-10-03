@@ -143,3 +143,17 @@ cargo test -p solitaire-egui fireworks_pipeline_and_instanced_draw_work_on_a_rea
 更新版のネイティブ・WASM の Clippy、テスト、リリースビルドが成功。macOS アプリと DMG を再生成し、アプリの署名、ディスクイメージのチェックサム、SHA-256 を検証した。
 
 絵札は共通のカード描画関数で J・Q・K × 4スートの12枚をローカルの確認用画面に並べ、スートの形とコントラストを目視確認。通常の盤面でも紋章を確認した。確認用の一覧画面は公開版に含めない。
+
+## ビルドとパッケージ処理の簡素化
+
+Web のビルド処理を `.github/workflows/pages.yml` に移し、`scripts/build-web.sh` を削除した。Cargo の出力先は `target` と明示し、Python によるメタデータ解析を不要にした。ビルド成果物のアップロードは Pages 用の1回だけとし、重複していた `web-build` アーティファクトと不要な `.nojekyll` 生成を除いた。
+
+macOS は `scripts/package-macos.sh` の1本で `.app` と `.dmg` を作成する。`bundle-macos.sh` と `generate-icon.swift` を削除し、既存のアイコン、plist、インストール説明を `assets/macos/` に保存した。版番号の設定・署名・DMG・SHA-256 は macOS 標準ツールで処理する。Actions でも `.app` の作成と署名検証を行う。
+
+- Actions と同じ4コマンドで WASM と静的サイトの生成が成功。
+- `bash -n scripts/package-macos.sh` と `plutil -lint assets/macos/Info.plist` が成功。
+- 空白を含む任意の出力先へ `.app` を生成し、版番号 `0.1.0`、plist の構文、`codesign --verify --strict`、実行ファイルの `--help` を確認。
+- `.dmg` を生成し、`hdiutil verify` と `shasum -a 256 -c` が成功。
+- 固定アセットの ICNS が、従来の生成済みアイコンとバイト単位で一致することを確認。
+
+上記以前の節にあるスクリプト名は当時の検証記録であり、現在のビルド手順は README を参照。

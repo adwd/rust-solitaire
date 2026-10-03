@@ -31,11 +31,14 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      - run: cargo build --release --locked -p solitaire-desktop
+      - name: Build macOS app
+        run: bash scripts/package-macos.sh 'target/Rust Solitaire.app'
 
   web:
     name: WebAssembly
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: target
     steps:
       - uses: actions/checkout@v6
       - name: Install Rust
@@ -54,12 +57,12 @@ jobs:
             cargo install wasm-bindgen-cli --version 0.2.129 --locked
           fi
       - run: cargo clippy --locked -p solitaire-web --target wasm32-unknown-unknown -- -D warnings
-      - run: bash scripts/build-web.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: web-build
-          path: dist
-          include-hidden-files: true
+      - name: Build Web assets
+        run: |
+          cargo build --release --locked --target wasm32-unknown-unknown -p solitaire-web
+          mkdir -p dist/pkg
+          wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/solitaire_web.wasm
+          cp -R web/. dist/
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
