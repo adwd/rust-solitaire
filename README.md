@@ -1,12 +1,12 @@
 # Rust Solitaire
 
-Rust 製のクロンダイク。`egui` と `eframe` を使い、`wgpu` で描画します。WebAssembly の Web 版と macOS ネイティブ版で同じ画面と操作を共有し、ゲームのコアは画面に依存しない独立したクレートです。UI は英語です。
+Rust 製のクロンダイク。`egui` / `eframe` の Web・デスクトップ版に加え、Bevy 0.20.0 の3Dデスクトップ版があります。どちらも `solitaire-core` の配札・ルール・履歴・自動クリアを共有します。UI は英語です。
 
 **Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)
 
 ## 起動
 
-`rust-toolchain.toml` で Rust 1.94.0 を指定しています。ネイティブ版の実機確認は macOS で行っています。
+`rust-toolchain.toml` で Rust 1.99.0 を指定しています。ネイティブ版の実機確認は macOS で行っています。
 
 ウィンドウは macOS 標準のタイトルバーと、閉じる・最小化・拡大の3つのボタンを使います。
 
@@ -22,6 +22,39 @@ cargo run --release -- --seed 42 --draw 3
 ```
 
 `--draw` は `1` または `3`。省略時は1枚めくりです。シードは符号なし64ビット整数で、省略時はランダムです。`--help` で引数を確認できます。
+
+## Bevy 3D 版
+
+```sh
+cargo run --release -p solitaire-bevy
+cargo run --release -p solitaire-bevy -- --seed 42 --draw 3
+```
+
+定番の7列の場札、左上の山札・捨て札、右上の4つの組札を3Dのフェルト卓に配置します。カードは厚みのあるメッシュで、ドラッグ中は卓から浮き上がり、移動先へ滑らかに着地します。`V` または View で斜め俯瞰と真上視点を切り替えられます。画像は実行ファイルに埋め込まれており、起動時の外部アセットは不要です。
+
+操作はドラッグ、または選択して移動先をクリック。ダブルクリックまたは右クリックで組札へ送ります。山札をクリック、または Space でめくり、空なら再巡回します。
+
+| キー | Bevy版の操作 |
+| --- | --- |
+| Z / Cmd・Ctrl + Z | Undo |
+| Y / Cmd・Ctrl + Shift + Z | Redo |
+| H | 合法手のヒント（押すたびに切り替え） |
+| A | コアが証明した手順で自動クリア |
+| V | カメラ視点の切り替え |
+| R | 同じシード・ルールで再開始 |
+| N | 新しいランダム配札 |
+| Esc | 選択・ドラッグ・自動クリアを中断 |
+| F12 | `screenshots/` に画面を保存 |
+
+Draw 1 / 3 は同じシードの新しいゲームとしてめくり枚数を変更します。Restart・New deal・Draw 1 / 3 は現在のゲームを即座に置き換えます。自動クリアは A / Finish から開始し、タイマーは開始時に止まります。Undo で中断でき、全操作が共有コアの履歴に残ります。
+
+GPU描画のプレビューを保存して終了することもできます。
+
+```sh
+cargo run -p solitaire-bevy -- --seed 42 --capture preview.png
+```
+
+Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run` は引き続き egui 版を起動します。配色は Web 版と共通です。クラシックなカード原画は CC0 の SVG を同梱し、再生成方法・出典・フォントライセンスは `crates/solitaire-bevy/assets/README.md` に記載しています。
 
 ## 遊び方
 
@@ -52,8 +85,9 @@ cargo run --release -- --seed 42 --draw 3
 | `solitaire-egui` | 共通 UI ライブラリ。カード描画、入力、設定、ヒント、経過時間、自動移動アニメーション、WGSL の勝利演出を扱います |
 | `solitaire-desktop` | `rust-solitaire` 実行ファイル。CLI、OS 標準ウィンドウ、ネイティブ起動を扱います |
 | `solitaire-web` | WASM ライブラリ。ブラウザの canvas と `WebRunner` の起動・終了を扱います |
+| `solitaire-bevy` | Bevy 0.20 の3Dデスクトップ版。卓・カード・カメラ・入力・演出を担当し、ルールと履歴は `solitaire-core` を直接使用します |
 
-依存方向は両方の起動クレート → `solitaire-egui` → `solitaire-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
+依存方向は既存の両方の起動クレート → `solitaire-egui` → `solitaire-core`、3D版は `solitaire-bevy` → `solitaire-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
 
 GUI は読み取り用の `Game::view()` を使い、変更は `Game::apply(Action)` を通します。無効な操作は盤面・手数・Undo / Redo 履歴を変更しません。ドラッグ中もコアは変えず、ドロップ時に操作を確定します。
 
@@ -110,6 +144,14 @@ bash scripts/package-macos.sh 'target/Rust Solitaire.app'
 
 `target/Rust Solitaire.app` を生成します。末尾が `.app` の任意の出力先も指定できます。アイコンと plist は `assets/macos/` の固定アセットを使い、アプリ全体を ad-hoc 署名します。バイナリの出力先は `CARGO_TARGET_DIR`、省略時は `target` です。パッケージのバージョンは workspace の `Cargo.toml` から取得します。
 
+Bevy版も同じトランプのアイコンを持つアプリとして作成できます。
+
+```sh
+bash scripts/package-macos.sh --bevy 'target/Rust Solitaire Bevy.app'
+```
+
+macOS の Dock・Finder のアイコンは `.app` 内の `Info.plist` と `AppIcon.icns` で設定します。`cargo run` で直接起動する実行ファイルにはこのバンドル設定が適用されません。ローカル確認で開発ビルドを使う場合は `SOLITAIRE_BUILD_PROFILE=dev` を付けて実行できます。既定は release ビルドです。
+
 ### macOS インストール用 DMG
 
 ```sh
@@ -137,10 +179,11 @@ DMG を開き、`Rust Solitaire.app` を `Applications` にドラッグしてく
 ## 使用ライブラリ
 
 - [egui と eframe](https://github.com/emilk/egui)
+- [Bevy](https://bevy.org/)
 - [wgpu](https://github.com/gfx-rs/wgpu)
 - [rand と rand_chacha](https://github.com/rust-random/rand)
 - [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen)
 - [web-time](https://github.com/daxpedda/web-time)
 - [proptest](https://github.com/proptest-rs/proptest)
 
-カードの柄と絵札はこのアプリ内で図形として描画しています。外部のカード画像や OS フォントは同梱しません。
+カードの柄と絵札はオリジナルの図形です。egui版は直接描画し、Bevy版は生成済みPNGをメッシュへ貼り付けます。外部のカード素材や OS フォントは同梱しません。

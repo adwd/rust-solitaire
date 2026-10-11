@@ -1,0 +1,13 @@
+[package]
+name = "solitaire-bevy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "A 3D Bevy frontend for the shared Klondike engine"
+
+[dependencies]
+solitaire-core.workspace = true
+bevy = { version = "=0.20.0", default-features = false, features = ["std", "async_executor", "multi_threaded", "bevy_asset", "bevy_color", "bevy_log", "bevy_window", "bevy_winit", "bevy_render", "bevy_image", "bevy_mesh", "bevy_camera", "bevy_light", "bevy_shader", "bevy_core_pipeline", "bevy_pbr", "bevy_text", "bevy_ui", "bevy_ui_render", "bevy_input_focus", "bevy_picking", "ui_picking", "default_font", "png", "x11", "wayland"] }
+
+[lints]
+workspace = true

@@ -1,12 +1,12 @@
 [workspace]
-members = ["crates/solitaire-core", "crates/solitaire-egui", "crates/solitaire-desktop", "crates/solitaire-web"]
+members = ["crates/solitaire-core", "crates/solitaire-egui", "crates/solitaire-desktop", "crates/solitaire-web", "crates/solitaire-bevy"]
 default-members = ["crates/solitaire-desktop"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.99"
 
 [workspace.dependencies]
 solitaire-core = { path = "crates/solitaire-core" }

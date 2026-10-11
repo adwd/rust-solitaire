@@ -251,7 +251,9 @@ mod tests {
         receiver.recv().unwrap().unwrap();
         let data = pixels.slice(..).get_mapped_range();
         let lit = data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .filter(|pixel| pixel[..3].iter().any(|channel| *channel > 20))
             .count();
         assert!(
