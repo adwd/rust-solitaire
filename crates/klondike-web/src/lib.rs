@@ -26,11 +26,11 @@ impl WebGame {
                 canvas,
                 eframe::WebOptions::default(),
                 Box::new(|cc| {
-                    Ok(Box::new(KlondikeApp::new(
+                    Ok(Box::new(WebApp(KlondikeApp::new(
                         cc,
                         random_seed(),
                         Rules::default(),
-                    )))
+                    ))))
                 }),
             )
             .await
@@ -48,5 +48,26 @@ impl WebGame {
 impl Default for WebGame {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+struct WebApp(KlondikeApp);
+
+impl eframe::App for WebApp {
+    fn ui(&mut self, ui: &mut eframe::egui::Ui, frame: &mut eframe::Frame) {
+        self.0.ui(ui, frame);
+    }
+
+    /// eframe 0.35 drops texture uploads from frames where the page is hidden.
+    /// A page opened in a background tab then loses the initial font atlas and
+    /// panics on its next partial update, so treat a hidden page as visible.
+    fn raw_input_hook(
+        &mut self,
+        _ctx: &eframe::egui::Context,
+        raw_input: &mut eframe::egui::RawInput,
+    ) {
+        if let Some(viewport) = raw_input.viewports.get_mut(&eframe::egui::ViewportId::ROOT) {
+            viewport.occluded = Some(false);
+        }
     }
 }

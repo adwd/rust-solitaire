@@ -144,6 +144,20 @@ impl eframe::App for GamesApp {
         }
         self.games[self.current.index()].ui(ui, frame);
     }
+
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        keep_visible(raw_input);
+    }
+}
+
+/// eframe 0.35 drops texture uploads from frames where the page is hidden.
+/// A page opened in a background tab then loses the initial font atlas and
+/// panics on its next partial update, so treat a hidden page as visible.
+/// Painting a hidden canvas is harmless.
+fn keep_visible(raw_input: &mut egui::RawInput) {
+    if let Some(viewport) = raw_input.viewports.get_mut(&egui::ViewportId::ROOT) {
+        viewport.occluded = Some(false);
+    }
 }
 
 #[cfg(test)]
@@ -163,6 +177,21 @@ mod tests {
         assert_eq!(GameKind::from_slug("#SUDOKU"), Some(GameKind::Sudoku));
         assert_eq!(GameKind::from_slug(""), None);
         assert_eq!(GameKind::from_slug("#chess"), None);
+    }
+
+    #[test]
+    fn hidden_pages_still_count_as_visible() {
+        let mut raw_input = egui::RawInput::default();
+        let viewport = raw_input
+            .viewports
+            .entry(egui::ViewportId::ROOT)
+            .or_default();
+        viewport.occluded = Some(true);
+        keep_visible(&mut raw_input);
+        let visible = raw_input.viewports[&egui::ViewportId::ROOT]
+            .visible()
+            .unwrap_or(true);
+        assert!(visible);
     }
 
     #[test]
