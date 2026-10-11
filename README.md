@@ -2,7 +2,9 @@
 
 Rust 製のクロンダイク。`egui` / `eframe` の Web・デスクトップ版に加え、Bevy 0.20.0 の3Dデスクトップ版があります。どちらも `klondike-core` の配札・ルール・履歴・自動クリアを共有します。UI は英語です。
 
-**Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)
+Web 版では同じ構成で作った数独・2048・マインスイーパーも遊べます。画面上部の **GAMES** バーで切り替えられ、切り替えても各ゲームの進行は保持されます。
+
+**Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)（[数独](https://adwd.github.io/rust-solitaire/#sudoku)・[2048](https://adwd.github.io/rust-solitaire/#2048)・[マインスイーパー](https://adwd.github.io/rust-solitaire/#minesweeper) を直接開くこともできます）
 
 ## 起動
 
@@ -77,6 +79,25 @@ Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run
 
 数字札には数字と同じ数のスートを描き、A は大きな1つのスート、J・Q・K はそれぞれ帽子・ティアラ・王冠を持つ絵札として描きます。上下の角はランクだけとし、余分なスートは表示しません。絵札には明るい背景に大きなスートの紋章を1つ置き、同じ赤のハート／ダイヤ、黒のスペード／クラブを形で区別できます。図形で描画するため、拡大や HiDPI でも鮮明です。
 
+## 数独・2048・マインスイーパー
+
+いずれも Web 版の GAMES バーから選びます。URL の `#klondike`・`#sudoku`・`#2048`・`#minesweeper` で開くゲームを指定でき、切り替えるとアドレスバーも追従します（履歴は増やしません）。New game ではシードを指定でき、同じシードなら同じ盤面になります。
+
+- **数独:** 各行・列・3×3 ブロックに 1〜9 を1つずつ入れます。Easy / Medium / Hard の問題はすべて解が1つです（ヒント数の下限はそれぞれ 40 / 32 / 26）。重複した数字は赤く表示し、Show mistakes をオンにすると正解と異なる数字も赤くなります。数字を置くと同じ行・列・ブロックのメモからその数字を消します。
+- **2048:** 同じ数字のタイルをぶつけて合体させます。1回の移動で合体するのは各タイル1回までで、移動ごとに 2（10% で 4）が出現します。2048 に到達すると勝利で、Keep going で続行できます。Undo しても出現するタイルは同じです。
+- **マインスイーパー:** Beginner（9×9・10個）/ Intermediate（16×16・40個）/ Expert（30×16・99個）。地雷は最初のクリック時に配置され、最初のマスとその周囲（置ける場合）は必ず安全です。数字のマスをクリックすると、周囲の旗の数が一致していれば残りの周囲をまとめて開きます（コード）。
+
+| キー | 数独 | 2048 | マインスイーパー |
+| --- | --- | --- | --- |
+| 矢印 | セル選択 | スライド | — |
+| 1〜9 / Backspace | 入力 / 消去 | — | — |
+| W A S D | — | スライド | — |
+| N / H | メモ切替 / ヒント | — | — |
+| F / R | — | — | 旗モード切替 / 同じ広さで新規 |
+| Cmd・Ctrl + Z（+ Shift） | Undo（Redo） | Undo（Redo） | — |
+
+2048 はスワイプ、マインスイーパーは右クリック・長押し・Flag mode で旗を立てられます。
+
 ## クレート構成
 
 | クレート | 責務 |
@@ -86,8 +107,15 @@ Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run
 | `klondike-desktop` | `rust-solitaire` 実行ファイル。CLI、OS 標準ウィンドウ、ネイティブ起動を扱います |
 | `klondike-web` | WASM ライブラリ。ブラウザの canvas と `WebRunner` の起動・終了を扱います |
 | `klondike-bevy` | Bevy 0.20 の3Dデスクトップ版。卓・カード・カメラ・入力・演出を担当し、ルールと履歴は `klondike-core` を直接使用します |
+| `sudoku-core` | 数独の問題生成（一意解の保証）、ソルバー、入力・メモ・重複判定、ヒント、履歴 |
+| `sudoku-web` | 数独の egui 画面。盤面描画、キーボード・キーパッド入力、経過時間 |
+| `game2048-core` | 2048 のスライド・合体・得点、タイル出現、終了判定、履歴（乱数状態を含む） |
+| `game2048-web` | 2048 の egui 画面。タイル描画、キー・スワイプ入力、ベストスコア |
+| `minesweeper-core` | マインスイーパーの地雷配置（初手安全）、開放・連鎖・旗・コード、勝敗判定 |
+| `minesweeper-web` | マインスイーパーの egui 画面。盤面描画、クリック・右クリック・長押し入力、経過時間 |
+| `games-web` | GitHub Pages 用の WASM ライブラリ。全ゲームの画面を保持し、GAMES バーと URL ハッシュで切り替えます |
 
-依存方向は既存の両方の起動クレート → `klondike-egui` → `klondike-core`、3D版は `klondike-bevy` → `klondike-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
+依存方向は既存の両方の起動クレート → `klondike-egui` → `klondike-core`、3D版は `klondike-bevy` → `klondike-core` です。追加したゲームは `<game>-web` → `<game>-core` で、`games-web` が4つの画面クレートをまとめます。各コアは `klondike-core` と同じく GUI・GPU・時計・I/O に依存せず、ChaCha8 のシードで決定的に動き、不正な操作では状態を変えません。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
 
 GUI は読み取り用の `Game::view()` を使い、変更は `Game::apply(Action)` を通します。無効な操作は盤面・手数・Undo / Redo 履歴を変更しません。ドラッグ中もコアは変えず、ドロップ時に操作を確定します。
 
@@ -110,29 +138,29 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo build --release -p klondike-desktop --locked
-cargo clippy -p klondike-web --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy -p games-web -p klondike-web --target wasm32-unknown-unknown --locked -- -D warnings
 ```
 
 コアだけのテストにはウィンドウや GPU は必要ありません。
 
 ```sh
-cargo test -p klondike-core --locked
+cargo test -p klondike-core -p sudoku-core -p game2048-core -p minesweeper-core --locked
 cargo tree -p klondike-core --edges normal
 ```
 
-ルールの境界条件、再巡回の順序、無効操作、勝利と履歴を検証します。プロパティテストでは複数のシードと操作列で52枚の不変条件と履歴の往復を確認します。GUI の入力テストは実際の egui のポインターイベントでクリックとドラッグを検証します。
+ルールの境界条件、再巡回の順序、無効操作、勝利と履歴を検証します。プロパティテストでは複数のシードと操作列で52枚の不変条件と履歴の往復を確認します。GUI の入力テストは実際の egui のポインターイベントでクリックとドラッグを検証します。追加したゲームのコアは、数独の解の一意性、2048 のタイル総和の保存と履歴の往復、マインスイーパーの数字と地雷の整合をプロパティテストで確認し、画面クレートはキー・クリック・スワイプのイベントで操作を検証します。
 
 ## Web 版のビルドと公開
 
 ```sh
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
-cargo build --release --locked --target wasm32-unknown-unknown -p klondike-web --target-dir target
+cargo build --release --locked --target wasm32-unknown-unknown -p games-web --target-dir target
 mkdir -p dist/pkg
-wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/klondike_web.wasm
+wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/games_web.wasm
 cp -R web/. dist/
 ```
 
-生成した `dist/` を静的 HTTP サーバーで配信すると、ローカルでも遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させます。出力先は `--target-dir target` で明示し、Python や Cargo メタデータの解析は使いません。`dist/` は HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームは失われます。
+生成した `dist/` を静的 HTTP サーバーで配信すると、ローカルでも遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させます。出力先は `--target-dir target` で明示し、Python や Cargo メタデータの解析は使いません。`dist/` は HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームと 2048 のベストスコアは失われます。Pages には `games-web` を配置します。`klondike-web` はクロンダイク単体の WASM 起動クレートとして残しています。
 
 `.github/workflows/pages.yml` 内に Web のビルド・ファイル配置・Pages 公開をまとめています。macOS 上のテストとアプリ作成、Linux 上の WASM ビルドが両方成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
 

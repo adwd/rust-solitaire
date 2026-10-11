@@ -1,5 +1,18 @@
 [workspace]
-members = ["crates/klondike-core", "crates/klondike-egui", "crates/klondike-desktop", "crates/klondike-web", "crates/klondike-bevy"]
+members = [
+    "crates/klondike-core",
+    "crates/klondike-egui",
+    "crates/klondike-desktop",
+    "crates/klondike-web",
+    "crates/klondike-bevy",
+    "crates/sudoku-core",
+    "crates/sudoku-web",
+    "crates/game2048-core",
+    "crates/game2048-web",
+    "crates/minesweeper-core",
+    "crates/minesweeper-web",
+    "crates/games-web",
+]
 default-members = ["crates/klondike-desktop"]
 resolver = "3"
 
@@ -11,6 +24,12 @@ rust-version = "1.99"
 [workspace.dependencies]
 klondike-core = { path = "crates/klondike-core" }
 klondike-egui = { path = "crates/klondike-egui" }
+sudoku-core = { path = "crates/sudoku-core" }
+game2048-core = { path = "crates/game2048-core" }
+minesweeper-core = { path = "crates/minesweeper-core" }
+sudoku-web = { path = "crates/sudoku-web" }
+game2048-web = { path = "crates/game2048-web" }
+minesweeper-web = { path = "crates/minesweeper-web" }
 rand = { version = "=0.9.2", default-features = false, features = ["std"] }
 rand_chacha = "=0.9.0"
 eframe = { version = "=0.35.0", default-features = false, features = ["default_fonts", "wgpu"] }

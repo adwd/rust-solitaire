@@ -1,0 +1,28 @@
+[package]
+name = "games-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "WebAssembly browser host that switches between every game"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+klondike-core.workspace = true
+klondike-egui.workspace = true
+sudoku-core.workspace = true
+sudoku-web.workspace = true
+game2048-web.workspace = true
+minesweeper-core.workspace = true
+minesweeper-web.workspace = true
+eframe.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wgpu = { version = "29", default-features = false, features = ["webgpu", "webgl"] }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+web-sys = { version = "=0.3.106", features = ["HtmlCanvasElement", "History", "Window"] }
+
+[lints]
+workspace = true

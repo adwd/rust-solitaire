@@ -1,0 +1,18 @@
+[package]
+name = "minesweeper-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Browser egui screen for Minesweeper"
+
+[dependencies]
+minesweeper-core.workspace = true
+eframe.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
+web-time.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
+
+[lints]
+workspace = true

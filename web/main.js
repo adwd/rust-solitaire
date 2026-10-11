@@ -2,14 +2,14 @@ const startup = document.getElementById("startup");
 const message = document.getElementById("startup-message");
 
 function showError(error) {
-  console.error("Rust Solitaire could not run:", error);
+  console.error("Rust Games could not run:", error);
   document.body.dataset.state = "error";
   message.textContent = "The game could not start. Reload the page, or try an up-to-date browser with hardware acceleration enabled.";
   startup.hidden = false;
 }
 
 try {
-  const { default: init, WebGame } = await import("./pkg/klondike_web.js");
+  const { default: init, WebGame } = await import("./pkg/games_web.js");
   await init();
   const game = new WebGame();
   await game.start(document.getElementById("game"));
