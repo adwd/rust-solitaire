@@ -3,7 +3,7 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Id, Key, Modifiers, Painter, Pos2, Rect, RichText, Sense, Shape,
     Stroke, StrokeKind, Vec2,
 };
-use minesweeper_core::{Action, CellView, Config, Game, MoveError, Position, Status};
+use minesweeper_core::{Action, CellView, Config, Game, Hint, MoveError, Position, Status};
 use web_time::Duration;
 
 const COVER: Color32 = Color32::from_rgb(62, 118, 97);
@@ -13,6 +13,7 @@ const GRID: Color32 = Color32::from_rgb(12, 38, 32);
 const FLAG: Color32 = Color32::from_rgb(236, 84, 70);
 const MINE: Color32 = Color32::from_rgb(18, 20, 20);
 const BLAST: Color32 = Color32::from_rgb(196, 58, 46);
+const CLUE: Color32 = Color32::from_rgb(170, 200, 186);
 
 const PRESETS: [(&str, Config); 3] = [
     ("Beginner", Config::BEGINNER),
@@ -36,6 +37,8 @@ pub struct MinesweeperApp {
     message: String,
     dialog: Option<Dialog>,
     result_dismissed: bool,
+    /// Shown until the next action changes the board.
+    hint: Option<Hint>,
 }
 
 impl MinesweeperApp {
@@ -54,6 +57,7 @@ impl MinesweeperApp {
                 .into(),
             dialog: None,
             result_dismissed: false,
+            hint: None,
         }
     }
 
@@ -66,7 +70,11 @@ impl MinesweeperApp {
     }
 
     fn apply(&mut self, action: Action) {
-        match self.game.apply(action) {
+        let result = self.game.apply(action);
+        if result.is_ok() {
+            self.hint = None;
+        }
+        match result {
             Ok(Status::Won) => {
                 self.clock.stop();
                 self.message = "Board cleared!".into();
@@ -96,6 +104,30 @@ impl MinesweeperApp {
         self.apply(action);
     }
 
+    fn show_hint(&mut self) {
+        let Some(hint) = self.game.hint() else {
+            return;
+        };
+        self.message = match &hint {
+            Hint::FirstReveal => "Hint: any cell is safe for your first click.".into(),
+            Hint::Safe { at, .. } if self.game.cell(*at) == CellView::Flagged => {
+                "Hint: the highlighted flag is wrong. That cell is safe.".into()
+            }
+            Hint::Safe { mine_count, .. } => format!(
+                "Hint: {} prove the highlighted cell is safe.",
+                evidence(*mine_count)
+            ),
+            Hint::Mine { mine_count, .. } => format!(
+                "Hint: {} prove the highlighted cell is a mine.",
+                evidence(*mine_count)
+            ),
+            Hint::Guess => {
+                "No cell is certain from what is revealed. You will have to guess.".into()
+            }
+        };
+        self.hint = Some(hint);
+    }
+
     fn preset_name(config: Config) -> String {
         PRESETS
             .iter()
@@ -123,6 +155,9 @@ impl MinesweeperApp {
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::R)) {
             self.begin(crate::random_seed(), self.game.config());
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::H)) {
+            self.show_hint();
         }
     }
 
@@ -158,6 +193,16 @@ impl MinesweeperApp {
                 ui.separator();
                 ui.toggle_value(&mut self.flag_mode, "Flag mode")
                     .on_hover_text("F: clicks place flags instead of revealing");
+                if ui
+                    .add_enabled(
+                        !matches!(self.game.status(), Status::Won | Status::Lost),
+                        egui::Button::new("Hint"),
+                    )
+                    .on_hover_text("H: highlight a cell the numbers prove safe or mined")
+                    .clicked()
+                {
+                    self.show_hint();
+                }
                 if ui.button("How to play").clicked() {
                     self.dialog = Some(Dialog::Help);
                 }
@@ -231,6 +276,7 @@ impl MinesweeperApp {
                         "A number counts the mines in the eight surrounding cells.",
                         "The first cell you reveal, and its neighbors when possible, are always safe.",
                         "Right-click or long-press to flag a suspected mine. F toggles flag mode.",
+                        "Hint (H) highlights a cell the revealed numbers prove safe or mined, and outlines those numbers. Flags are never trusted as evidence.",
                         "Click a number whose flags are all placed to reveal its other neighbors.",
                         "R starts a fresh board of the same size. The same seed and first click give the same mines.",
                     ] {
@@ -324,8 +370,11 @@ impl MinesweeperApp {
                     .show(ui, |ui| {
                         ui.vertical_centered(|ui| {
                             let enabled = self.dialog.is_none();
-                            let (_, press) =
-                                ui.add_enabled_ui(enabled, |ui| board(ui, &self.game)).inner;
+                            let (_, press) = ui
+                                .add_enabled_ui(enabled, |ui| {
+                                    board(ui, &self.game, self.hint.as_ref())
+                                })
+                                .inner;
                             match press {
                                 Some(Press::Primary(at)) => self.press(at),
                                 Some(Press::Secondary(at)) => self.apply(Action::ToggleFlag(at)),
@@ -345,6 +394,14 @@ impl MinesweeperApp {
 impl eframe::App for MinesweeperApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.show(ui);
+    }
+}
+
+fn evidence(mine_count: bool) -> &'static str {
+    if mine_count {
+        "the outlined numbers and the mine count"
+    } else {
+        "the outlined numbers"
     }
 }
 
@@ -404,7 +461,7 @@ fn mine(painter: &Painter, rect: Rect) {
 }
 
 /// Paint the board and return its area with the cell under a click.
-fn board(ui: &mut egui::Ui, game: &Game) -> (Rect, Option<Press>) {
+fn board(ui: &mut egui::Ui, game: &Game, hint: Option<&Hint>) -> (Rect, Option<Press>) {
     let config = game.config();
     let cell = (ui.available_width() / config.cols as f32)
         .min(ui.available_height() / config.rows as f32)
@@ -462,6 +519,36 @@ fn board(ui: &mut egui::Ui, game: &Game) -> (Rect, Option<Press>) {
         }
     }
     painter.rect_stroke(area, 4.0, Stroke::new(2.0, GRID), StrokeKind::Outside);
+    let cell_rect = |at: Position| {
+        Rect::from_min_size(
+            area.min + Vec2::new(at.col as f32, at.row as f32) * cell,
+            Vec2::splat(cell),
+        )
+    };
+    if let Some(Hint::Safe { at, clues, .. } | Hint::Mine { at, clues, .. }) = hint {
+        for &clue in clues {
+            painter.rect_stroke(
+                cell_rect(clue).shrink(2.0),
+                3.0,
+                Stroke::new(1.5, CLUE),
+                StrokeKind::Inside,
+            );
+        }
+        let color = if matches!(hint, Some(Hint::Mine { .. })) {
+            FLAG
+        } else {
+            theme::GOLD
+        };
+        // A slow pulse keeps the target noticeable on large boards.
+        let pulse = (ui.input(|i| i.time) * 4.0).sin() as f32 * 0.5 + 0.5;
+        painter.rect_stroke(
+            cell_rect(*at).expand(1.0),
+            4.0,
+            Stroke::new(2.5 + pulse * 1.5, color),
+            StrokeKind::Outside,
+        );
+        ui.ctx().request_repaint();
+    }
     let pos = response.interact_pointer_pos().or(response.hover_pos());
     let press = if response.secondary_clicked() || response.long_touched() {
         pos.map(|pos| Press::Secondary(at_pos(pos)))
@@ -507,7 +594,7 @@ mod tests {
                     events,
                     ..Default::default()
                 },
-                |ui| result = Some(board(ui, &self.app.game)),
+                |ui| result = Some(board(ui, &self.app.game, self.app.hint.as_ref())),
             );
             let (area, press) = result.unwrap();
             self.board = area;
@@ -547,6 +634,27 @@ mod tests {
         h.click(Position::new(4, 4), egui::PointerButton::Primary);
         assert_eq!(h.app.game.cell(Position::new(4, 4)), CellView::Revealed(0));
         assert!(h.app.clock.is_running());
+    }
+
+    #[test]
+    fn hints_highlight_until_the_board_changes() {
+        let mut h = Harness::new(6);
+        h.app.show_hint();
+        assert_eq!(h.app.hint, Some(Hint::FirstReveal));
+        h.click(Position::new(4, 4), egui::PointerButton::Primary);
+        assert_eq!(h.app.hint, None, "a move clears the old hint");
+        h.app.show_hint();
+        let target = match h.app.hint.clone() {
+            Some(Hint::Safe { at, .. } | Hint::Mine { at, .. }) => Some(at),
+            Some(Hint::Guess) => None,
+            other => panic!("unexpected hint {other:?}"),
+        };
+        h.frame(vec![]);
+        if let Some(at) = target {
+            assert!(h.app.message.starts_with("Hint:"));
+            h.click(at, egui::PointerButton::Secondary);
+            assert_eq!(h.app.hint, None);
+        }
     }
 
     #[test]

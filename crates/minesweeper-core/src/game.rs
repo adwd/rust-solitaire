@@ -70,7 +70,7 @@ impl Config {
         }
     }
 
-    const fn cells(self) -> usize {
+    pub(crate) const fn cells(self) -> usize {
         self.rows * self.cols
     }
 }
@@ -135,7 +135,7 @@ pub enum CellView {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Cover {
+pub(crate) enum Cover {
     Hidden,
     Flagged,
     Revealed,
@@ -143,10 +143,10 @@ enum Cover {
 
 #[derive(Debug, Clone)]
 pub struct Game {
-    config: Config,
+    pub(crate) config: Config,
     seed: u64,
     mines: Vec<bool>,
-    cover: Vec<Cover>,
+    pub(crate) cover: Vec<Cover>,
     placed: bool,
     exploded: Option<usize>,
     revealed: usize,
@@ -335,11 +335,11 @@ impl Game {
             .then_some(at.row * self.config.cols + at.col)
     }
 
-    fn adjacent_mines(&self, index: usize) -> u8 {
+    pub(crate) fn adjacent_mines(&self, index: usize) -> u8 {
         self.neighbors(index).filter(|&n| self.mines[n]).count() as u8
     }
 
-    fn neighbors(&self, index: usize) -> impl Iterator<Item = usize> + use<> {
+    pub(crate) fn neighbors(&self, index: usize) -> impl Iterator<Item = usize> + use<> {
         let Config { rows, cols, .. } = self.config;
         let (row, col) = (index / cols, index % cols);
         (row.saturating_sub(1)..=(row + 1).min(rows - 1))

@@ -148,3 +148,139 @@ proptest! {
         }
     }
 }
+
+mod hints {
+    use super::*;
+
+    fn reveal(game: &mut Game, cells: &[Position]) {
+        for &cell in cells {
+            game.apply(Action::Reveal(cell)).unwrap();
+        }
+    }
+
+    #[test]
+    fn the_first_click_needs_no_deduction() {
+        let game = Game::new(1, Config::BEGINNER);
+        assert_eq!(game.hint(), Some(Hint::FirstReveal));
+    }
+
+    #[test]
+    fn a_number_with_one_hidden_neighbor_points_to_its_mine() {
+        // 1 * ?
+        let mut game = Game::with_mines(Config::custom(1, 3, 1).unwrap(), &[at(0, 1)]);
+        reveal(&mut game, &[at(0, 0)]);
+        assert_eq!(
+            game.hint(),
+            Some(Hint::Mine {
+                at: at(0, 1),
+                clues: vec![at(0, 0)],
+                mine_count: false,
+            })
+        );
+    }
+
+    #[test]
+    fn chained_deductions_cite_every_number_they_used() {
+        // 1 * 1 ?   the left 1 proves the mine, which satisfies the
+        //           right 1 and clears the last cell
+        let mut game = Game::with_mines(Config::custom(1, 4, 1).unwrap(), &[at(0, 1)]);
+        reveal(&mut game, &[at(0, 0), at(0, 2)]);
+        assert_eq!(
+            game.hint(),
+            Some(Hint::Safe {
+                at: at(0, 3),
+                clues: vec![at(0, 0), at(0, 2)],
+                mine_count: false,
+            })
+        );
+    }
+
+    #[test]
+    fn nested_numbers_reveal_the_one_two_one_pattern() {
+        // . . . . .      hidden row with mines over the 1s
+        // 1 2 1 . .      only the middle cell above the 2 is safe
+        // 0 0 0 . .
+        let config = Config::custom(3, 3, 2).unwrap();
+        let mut game = Game::with_mines(config, &[at(0, 0), at(0, 2)]);
+        reveal(&mut game, &[at(2, 1)]);
+        assert_eq!(game.cell(at(1, 1)), CellView::Revealed(2));
+        let Some(Hint::Safe { at: safe, .. }) = game.hint() else {
+            panic!("expected a safe cell, got {:?}", game.hint());
+        };
+        assert_eq!(safe, at(0, 1));
+    }
+
+    #[test]
+    fn a_flag_on_a_safe_cell_is_called_out() {
+        // 1 * ?   once the mine is known, the mine count clears the last cell
+        let mut game = Game::with_mines(Config::custom(1, 3, 1).unwrap(), &[at(0, 1)]);
+        reveal(&mut game, &[at(0, 0)]);
+        game.apply(Action::ToggleFlag(at(0, 1))).unwrap();
+        assert!(matches!(game.hint(), Some(Hint::Safe { at: s, .. }) if s == at(0, 2)));
+        // Flags are not evidence: a wrong flag is reported as a safe cell.
+        game.apply(Action::ToggleFlag(at(0, 2))).unwrap();
+        assert!(matches!(game.hint(), Some(Hint::Safe { at: s, .. }) if s == at(0, 2)));
+    }
+
+    #[test]
+    fn an_even_split_leaves_only_a_guess() {
+        // 0 1 ?
+        // 0 1 ?   one mine in either right cell: nothing tells them apart.
+        let mut game = Game::with_mines(Config::custom(2, 3, 1).unwrap(), &[at(0, 2)]);
+        reveal(&mut game, &[at(0, 0)]);
+        assert_eq!(game.hint(), Some(Hint::Guess));
+    }
+
+    #[test]
+    fn the_mine_count_settles_cells_away_from_numbers() {
+        // 0 1 ? ?    the 1s already account for the only mine,
+        // 0 1 ? ?    so the far column is safe.
+        let config = Config::custom(2, 4, 1).unwrap();
+        let mut game = Game::with_mines(config, &[at(0, 2)]);
+        reveal(&mut game, &[at(0, 0)]);
+        assert!(matches!(
+            game.hint(),
+            Some(Hint::Safe { at, mine_count: true, .. }) if at.col == 3
+        ));
+    }
+
+    #[test]
+    fn no_hint_after_the_game_ends() {
+        let config = Config::custom(2, 2, 1).unwrap();
+        let mut game = Game::with_mines(config, &[at(0, 1)]);
+        reveal(&mut game, &[at(0, 1)]);
+        assert_eq!(game.hint(), None);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(48))]
+
+        /// Following hints never loses: safe cells hold no mine and mine
+        /// hints are real. A guess is the only way the game can stop.
+        #[test]
+        fn hints_are_always_correct(seed in any::<u64>(), preset in 0usize..3, first in 0usize..480) {
+            let config = [Config::BEGINNER, Config::INTERMEDIATE, Config::EXPERT][preset];
+            let mut game = Game::new(seed, config);
+            let first = first % (config.rows * config.cols);
+            game.apply(Action::Reveal(at(first / config.cols, first % config.cols))).unwrap();
+            for _ in 0..config.rows * config.cols * 2 {
+                match game.hint() {
+                    Some(Hint::Safe { at, .. }) => {
+                        prop_assert!(!game.has_mine(at), "safe hint on a mine at {:?}", at);
+                        if game.cell(at) == CellView::Flagged {
+                            game.apply(Action::ToggleFlag(at)).unwrap();
+                        }
+                        prop_assert_ne!(game.apply(Action::Reveal(at)).unwrap(), Status::Lost);
+                    }
+                    Some(Hint::Mine { at, .. }) => {
+                        prop_assert!(game.has_mine(at), "mine hint on a safe cell at {:?}", at);
+                        game.apply(Action::ToggleFlag(at)).unwrap();
+                    }
+                    Some(Hint::Guess) | None => break,
+                    Some(Hint::FirstReveal) => prop_assert!(false, "already revealed"),
+                }
+            }
+            prop_assert_ne!(game.status(), Status::Lost);
+        }
+    }
+}

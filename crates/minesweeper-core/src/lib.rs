@@ -9,8 +9,10 @@
 //! ```
 
 mod game;
+mod hint;
 
 pub use game::{Action, CellView, Config, ConfigError, Game, MoveError, Position, Status};
+pub use hint::Hint;
 
 #[cfg(test)]
 mod tests;
