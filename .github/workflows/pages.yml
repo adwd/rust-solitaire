@@ -32,7 +32,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - name: Build Bevy frontend
-        run: cargo build --locked -p solitaire-bevy
+        run: cargo build --locked -p klondike-bevy
       - name: Build macOS app
         run: bash scripts/package-macos.sh 'target/Rust Solitaire.app'
 
@@ -58,12 +58,12 @@ jobs:
           if ! wasm-bindgen --version 2>/dev/null | grep -qx 'wasm-bindgen 0.2.129'; then
             cargo install wasm-bindgen-cli --version 0.2.129 --locked
           fi
-      - run: cargo clippy --locked -p solitaire-web --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo clippy --locked -p klondike-web --target wasm32-unknown-unknown -- -D warnings
       - name: Build Web assets
         run: |
-          cargo build --release --locked --target wasm32-unknown-unknown -p solitaire-web
+          cargo build --release --locked --target wasm32-unknown-unknown -p klondike-web
           mkdir -p dist/pkg
-          wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/solitaire_web.wasm
+          wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/klondike_web.wasm
           cp -R web/. dist/
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

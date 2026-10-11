@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/solitaire-core", "crates/solitaire-egui", "crates/solitaire-desktop", "crates/solitaire-web", "crates/solitaire-bevy"]
-default-members = ["crates/solitaire-desktop"]
+members = ["crates/klondike-core", "crates/klondike-egui", "crates/klondike-desktop", "crates/klondike-web", "crates/klondike-bevy"]
+default-members = ["crates/klondike-desktop"]
 resolver = "3"
 
 [workspace.package]
@@ -9,8 +9,8 @@ edition = "2024"
 rust-version = "1.99"
 
 [workspace.dependencies]
-solitaire-core = { path = "crates/solitaire-core" }
-solitaire-egui = { path = "crates/solitaire-egui" }
+klondike-core = { path = "crates/klondike-core" }
+klondike-egui = { path = "crates/klondike-egui" }
 rand = { version = "=0.9.2", default-features = false, features = ["std"] }
 rand_chacha = "=0.9.0"
 eframe = { version = "=0.35.0", default-features = false, features = ["default_fonts", "wgpu"] }

@@ -7,13 +7,13 @@ if [ "$(uname -s)" != Darwin ]; then
     exit 1
 fi
 
-frontend="solitaire-desktop"
+frontend="klondike-desktop"
 executable="rust-solitaire"
 app_name="Rust Solitaire"
 bundle_id="adwd.rust-solitaire"
 if [ "${1:-}" = --bevy ]; then
-    frontend="solitaire-bevy"
-    executable="solitaire-bevy"
+    frontend="klondike-bevy"
+    executable="klondike-bevy"
     app_name="Rust Solitaire Bevy"
     bundle_id="adwd.rust-solitaire.bevy"
     shift

@@ -9,7 +9,7 @@ function showError(error) {
 }
 
 try {
-  const { default: init, WebGame } = await import("./pkg/solitaire_web.js");
+  const { default: init, WebGame } = await import("./pkg/klondike_web.js");
   await init();
   const game = new WebGame();
   await game.start(document.getElementById("game"));

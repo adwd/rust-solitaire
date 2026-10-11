@@ -1,6 +1,6 @@
 # Rust Solitaire
 
-Rust 製のクロンダイク。`egui` / `eframe` の Web・デスクトップ版に加え、Bevy 0.20.0 の3Dデスクトップ版があります。どちらも `solitaire-core` の配札・ルール・履歴・自動クリアを共有します。UI は英語です。
+Rust 製のクロンダイク。`egui` / `eframe` の Web・デスクトップ版に加え、Bevy 0.20.0 の3Dデスクトップ版があります。どちらも `klondike-core` の配札・ルール・履歴・自動クリアを共有します。UI は英語です。
 
 **Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)
 
@@ -26,8 +26,8 @@ cargo run --release -- --seed 42 --draw 3
 ## Bevy 3D 版
 
 ```sh
-cargo run --release -p solitaire-bevy
-cargo run --release -p solitaire-bevy -- --seed 42 --draw 3
+cargo run --release -p klondike-bevy
+cargo run --release -p klondike-bevy -- --seed 42 --draw 3
 ```
 
 定番の7列の場札、左上の山札・捨て札、右上の4つの組札を3Dのフェルト卓に配置します。カードは厚みのあるメッシュで、ドラッグ中は卓から浮き上がり、移動先へ滑らかに着地します。`V` または View で斜め俯瞰と真上視点を切り替えられます。画像は実行ファイルに埋め込まれており、起動時の外部アセットは不要です。
@@ -51,10 +51,10 @@ Draw 1 / 3 は同じシードの新しいゲームとしてめくり枚数を変
 GPU描画のプレビューを保存して終了することもできます。
 
 ```sh
-cargo run -p solitaire-bevy -- --seed 42 --capture preview.png
+cargo run -p klondike-bevy -- --seed 42 --capture preview.png
 ```
 
-Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run` は引き続き egui 版を起動します。配色は Web 版と共通です。クラシックなカード原画は CC0 の SVG を同梱し、再生成方法・出典・フォントライセンスは `crates/solitaire-bevy/assets/README.md` に記載しています。
+Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run` は引き続き egui 版を起動します。配色は Web 版と共通です。クラシックなカード原画は CC0 の SVG を同梱し、再生成方法・出典・フォントライセンスは `crates/klondike-bevy/assets/README.md` に記載しています。
 
 ## 遊び方
 
@@ -81,18 +81,18 @@ Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run
 
 | クレート | 責務 |
 | --- | --- |
-| `solitaire-core` | カード、配札、ルール、合法手、勝利判定、自動クリアの手順証明、履歴。GUI・GPU・時計・ファイル I/O への依存を持ちません |
-| `solitaire-egui` | 共通 UI ライブラリ。カード描画、入力、設定、ヒント、経過時間、自動移動アニメーション、WGSL の勝利演出を扱います |
-| `solitaire-desktop` | `rust-solitaire` 実行ファイル。CLI、OS 標準ウィンドウ、ネイティブ起動を扱います |
-| `solitaire-web` | WASM ライブラリ。ブラウザの canvas と `WebRunner` の起動・終了を扱います |
-| `solitaire-bevy` | Bevy 0.20 の3Dデスクトップ版。卓・カード・カメラ・入力・演出を担当し、ルールと履歴は `solitaire-core` を直接使用します |
+| `klondike-core` | カード、配札、ルール、合法手、勝利判定、自動クリアの手順証明、履歴。GUI・GPU・時計・ファイル I/O への依存を持ちません |
+| `klondike-egui` | 共通 UI ライブラリ。カード描画、入力、設定、ヒント、経過時間、自動移動アニメーション、WGSL の勝利演出を扱います |
+| `klondike-desktop` | `rust-solitaire` 実行ファイル。CLI、OS 標準ウィンドウ、ネイティブ起動を扱います |
+| `klondike-web` | WASM ライブラリ。ブラウザの canvas と `WebRunner` の起動・終了を扱います |
+| `klondike-bevy` | Bevy 0.20 の3Dデスクトップ版。卓・カード・カメラ・入力・演出を担当し、ルールと履歴は `klondike-core` を直接使用します |
 
-依存方向は既存の両方の起動クレート → `solitaire-egui` → `solitaire-core`、3D版は `solitaire-bevy` → `solitaire-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
+依存方向は既存の両方の起動クレート → `klondike-egui` → `klondike-core`、3D版は `klondike-bevy` → `klondike-core` です。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
 
 GUI は読み取り用の `Game::view()` を使い、変更は `Game::apply(Action)` を通します。無効な操作は盤面・手数・Undo / Redo 履歴を変更しません。ドラッグ中もコアは変えず、ドロップ時に操作を確定します。
 
 ```rust
-use solitaire_core::{Action, Game, Rules};
+use klondike_core::{Action, Game, Rules};
 
 let mut game = Game::new(42, Rules::default());
 game.apply(Action::Draw).unwrap();
@@ -109,15 +109,15 @@ assert_eq!(game.view().stock.len(), 24);
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
-cargo build --release -p solitaire-desktop --locked
-cargo clippy -p solitaire-web --target wasm32-unknown-unknown --locked -- -D warnings
+cargo build --release -p klondike-desktop --locked
+cargo clippy -p klondike-web --target wasm32-unknown-unknown --locked -- -D warnings
 ```
 
 コアだけのテストにはウィンドウや GPU は必要ありません。
 
 ```sh
-cargo test -p solitaire-core --locked
-cargo tree -p solitaire-core --edges normal
+cargo test -p klondike-core --locked
+cargo tree -p klondike-core --edges normal
 ```
 
 ルールの境界条件、再巡回の順序、無効操作、勝利と履歴を検証します。プロパティテストでは複数のシードと操作列で52枚の不変条件と履歴の往復を確認します。GUI の入力テストは実際の egui のポインターイベントでクリックとドラッグを検証します。
@@ -126,9 +126,9 @@ cargo tree -p solitaire-core --edges normal
 
 ```sh
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
-cargo build --release --locked --target wasm32-unknown-unknown -p solitaire-web --target-dir target
+cargo build --release --locked --target wasm32-unknown-unknown -p klondike-web --target-dir target
 mkdir -p dist/pkg
-wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/solitaire_web.wasm
+wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/klondike_web.wasm
 cp -R web/. dist/
 ```
 
