@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#112a25">
-    <meta name="description" content="Play Klondike Solitaire, Sudoku, 2048, and Minesweeper in your browser, with undo and reproducible seeds.">
+    <meta name="description" content="Play Klondike Solitaire, Sudoku, 2048, Minesweeper, Sokoban, and Nonogram in your browser.">
     <title>Rust Games</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./style.css">
@@ -12,11 +12,22 @@
   </head>
   <body data-state="loading">
     <main>
-      <canvas id="game" aria-label="Rust Games board"></canvas>
+      <nav aria-label="Games">
+        <span>GAMES</span>
+        <button type="button" data-game="klondike" aria-pressed="false">Klondike</button>
+        <button type="button" data-game="sudoku" aria-pressed="false">Sudoku</button>
+        <button type="button" data-game="2048" aria-pressed="false">2048</button>
+        <button type="button" data-game="minesweeper" aria-pressed="false">Minesweeper</button>
+        <button type="button" data-game="sokoban" aria-pressed="false">Sokoban</button>
+        <button type="button" data-game="nonogram" aria-pressed="false">Nonogram</button>
+      </nav>
+      <section id="stage" aria-label="Game">
       <div id="startup" role="status" aria-live="polite">
         <h1>Rust Games</h1>
         <p id="startup-message">Loading the game…</p>
+        <button type="button" id="retry" hidden>Retry</button>
       </div>
+      </section>
     </main>
     <noscript>Rust Games requires JavaScript and WebAssembly.</noscript>
   </body>

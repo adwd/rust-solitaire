@@ -1,8 +1,8 @@
-//! Browser lifecycle only: start, stop, and mirror the current game in the URL.
+//! Browser lifecycle for one lazily loaded game.
 
 use wasm_bindgen::prelude::*;
 
-use crate::{GameKind, GamesApp};
+use crate::{GameKind, screen::Screen};
 
 /// Kept alive by the page until it is closed or reloaded.
 #[wasm_bindgen]
@@ -19,18 +19,32 @@ impl WebGame {
         }
     }
 
-    pub async fn start(&self, canvas: web_sys::HtmlCanvasElement) -> Result<(), JsValue> {
+    pub async fn start(
+        &self,
+        canvas: web_sys::HtmlCanvasElement,
+        slug: &str,
+    ) -> Result<(), JsValue> {
+        let kind = GameKind::from_slug(slug).ok_or_else(|| JsValue::from_str("Unknown game"))?;
         self.runner
             .start(
                 canvas,
                 eframe::WebOptions::default(),
-                Box::new(|cc| {
-                    let initial = GameKind::from_slug(&cc.integration_info.web_info.location.hash)
-                        .unwrap_or(GameKind::Klondike);
-                    Ok(Box::new(GamesApp::new(cc, initial, Box::new(show_in_url))))
+                Box::new(move |cc| {
+                    let app = kind.create(cc).ok_or("Game not included in this module")?;
+                    Ok(Box::new(Screen {
+                        app,
+                        active: false,
+                        ctx: cc.egui_ctx.clone(),
+                    }))
                 }),
             )
             .await
+    }
+
+    pub fn set_active(&self, active: bool) {
+        if let Some(mut screen) = self.runner.app_mut::<Screen>() {
+            screen.set_active(active);
+        }
     }
 
     pub fn destroy(&self) {
@@ -45,14 +59,5 @@ impl WebGame {
 impl Default for WebGame {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// `replaceState` keeps reloads and shared links on the same game without
-/// adding history entries or firing `hashchange`.
-fn show_in_url(kind: GameKind) {
-    if let Some(history) = web_sys::window().and_then(|window| window.history().ok()) {
-        let _ =
-            history.replace_state_with_url(&JsValue::NULL, "", Some(&format!("#{}", kind.slug())));
     }
 }

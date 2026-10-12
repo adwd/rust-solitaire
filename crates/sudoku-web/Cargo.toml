@@ -7,7 +7,7 @@ description = "Browser egui screen for Sudoku"
 
 [dependencies]
 sudoku-core.workspace = true
-eframe.workspace = true
+eframe = { workspace = true, features = ["glow"] }
 rand = { workspace = true, features = ["thread_rng"] }
 web-time.workspace = true
 

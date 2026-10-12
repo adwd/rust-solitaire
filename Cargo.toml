@@ -11,6 +11,10 @@ members = [
     "crates/game2048-web",
     "crates/minesweeper-core",
     "crates/minesweeper-web",
+    "crates/sokoban-core",
+    "crates/sokoban-web",
+    "crates/nonogram-core",
+    "crates/nonogram-web",
     "crates/games-web",
 ]
 default-members = ["crates/klondike-desktop"]
@@ -30,9 +34,13 @@ minesweeper-core = { path = "crates/minesweeper-core" }
 sudoku-web = { path = "crates/sudoku-web" }
 game2048-web = { path = "crates/game2048-web" }
 minesweeper-web = { path = "crates/minesweeper-web" }
+sokoban-core = { path = "crates/sokoban-core" }
+sokoban-web = { path = "crates/sokoban-web" }
+nonogram-core = { path = "crates/nonogram-core" }
+nonogram-web = { path = "crates/nonogram-web" }
 rand = { version = "=0.9.2", default-features = false, features = ["std"] }
 rand_chacha = "=0.9.0"
-eframe = { version = "=0.35.0", default-features = false, features = ["default_fonts", "wgpu"] }
+eframe = { version = "=0.35.0", default-features = false, features = ["default_fonts"] }
 web-time = "1.1.0"
 proptest = "1.9"
 
@@ -41,3 +49,12 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = "warn"
+
+# Browser builds favor download size; native release builds keep their defaults.
+[profile.web]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"
+panic = "abort"

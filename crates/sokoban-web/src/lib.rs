@@ -1,0 +1,11 @@
+//! Sokoban screen, hosted by `games-web` and testable without a GPU.
+
+mod app;
+mod theme;
+
+pub use app::SokobanApp;
+
+/// Obtain a fresh seed from the host.
+pub fn random_seed() -> u64 {
+    rand::random()
+}

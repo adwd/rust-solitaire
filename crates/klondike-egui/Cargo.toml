@@ -7,7 +7,7 @@ description = "Shared GPU-rendered Klondike UI for desktop and web"
 
 [dependencies]
 klondike-core.workspace = true
-eframe.workspace = true
+eframe = { workspace = true, features = ["wgpu"] }
 rand = { workspace = true, features = ["thread_rng"] }
 web-time.workspace = true
 

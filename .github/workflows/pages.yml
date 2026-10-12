@@ -62,12 +62,9 @@ jobs:
             cargo install wasm-bindgen-cli --version 0.2.129 --locked --bin wasm-bindgen
           fi
       - run: cargo clippy --locked -p games-web -p klondike-web --target wasm32-unknown-unknown -- -D warnings
+      - run: node --test web/tests/*.test.mjs
       - name: Build Web assets
-        run: |
-          cargo build --release --locked --target wasm32-unknown-unknown -p games-web
-          mkdir -p dist/pkg
-          wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/games_web.wasm
-          cp -R web/. dist/
+        run: bash scripts/build-web.sh
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:

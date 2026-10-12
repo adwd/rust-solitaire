@@ -1,0 +1,13 @@
+[package]
+name = "sokoban-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "UI-independent Sokoban levels, rules, and history"
+
+[dependencies]
+rand.workspace = true
+rand_chacha.workspace = true
+
+[lints]
+workspace = true

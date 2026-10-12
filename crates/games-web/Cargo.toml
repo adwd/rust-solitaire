@@ -3,23 +3,35 @@ name = "games-web"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "WebAssembly browser host that switches between every game"
+description = "Feature-selectable WebAssembly host for lazily loaded games"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["all-games"]
+all-games = ["klondike", "sudoku", "2048", "minesweeper", "sokoban", "nonogram"]
+klondike = ["dep:klondike-core", "dep:klondike-egui", "dep:wgpu"]
+sudoku = ["dep:sudoku-core", "dep:sudoku-web"]
+2048 = ["dep:game2048-web"]
+minesweeper = ["dep:minesweeper-core", "dep:minesweeper-web"]
+sokoban = ["dep:sokoban-web"]
+nonogram = ["dep:nonogram-web"]
+
 [dependencies]
-klondike-core.workspace = true
-klondike-egui.workspace = true
-sudoku-core.workspace = true
-sudoku-web.workspace = true
-game2048-web.workspace = true
-minesweeper-core.workspace = true
-minesweeper-web.workspace = true
+klondike-core = { workspace = true, optional = true }
+klondike-egui = { workspace = true, optional = true }
+sudoku-core = { workspace = true, optional = true }
+sudoku-web = { workspace = true, optional = true }
+game2048-web = { workspace = true, optional = true }
+minesweeper-core = { workspace = true, optional = true }
+minesweeper-web = { workspace = true, optional = true }
+sokoban-web = { workspace = true, optional = true }
+nonogram-web = { workspace = true, optional = true }
 eframe.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wgpu = { version = "29", default-features = false, features = ["webgpu", "webgl"] }
+wgpu = { version = "29", optional = true, default-features = false, features = ["webgpu", "webgl"] }
 wasm-bindgen = "=0.2.129"
 wasm-bindgen-futures = "=0.4.79"
 web-sys = { version = "=0.3.106", features = ["HtmlCanvasElement", "History", "Window"] }

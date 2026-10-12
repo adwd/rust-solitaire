@@ -1,22 +1,21 @@
-use eframe::egui::{self, Color32, RichText};
-
-const BAR: Color32 = Color32::from_rgb(10, 30, 26);
-const GOLD: Color32 = Color32::from_rgb(225, 196, 126);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameKind {
     Klondike,
     Sudoku,
     Game2048,
     Minesweeper,
+    Sokoban,
+    Nonogram,
 }
 
 impl GameKind {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 6] = [
         Self::Klondike,
         Self::Sudoku,
         Self::Game2048,
         Self::Minesweeper,
+        Self::Sokoban,
+        Self::Nonogram,
     ];
 
     pub const fn label(self) -> &'static str {
@@ -25,6 +24,8 @@ impl GameKind {
             Self::Sudoku => "Sudoku",
             Self::Game2048 => "2048",
             Self::Minesweeper => "Minesweeper",
+            Self::Sokoban => "Sokoban",
+            Self::Nonogram => "Nonogram",
         }
     }
 
@@ -35,6 +36,8 @@ impl GameKind {
             Self::Sudoku => "sudoku",
             Self::Game2048 => "2048",
             Self::Minesweeper => "minesweeper",
+            Self::Sokoban => "sokoban",
+            Self::Nonogram => "nonogram",
         }
     }
 
@@ -46,124 +49,46 @@ impl GameKind {
             .find(|kind| kind.slug().eq_ignore_ascii_case(value))
     }
 
-    const fn index(self) -> usize {
-        self as usize
-    }
-}
-
-/// Every game stays alive in the background, so switching keeps progress.
-pub struct GamesApp {
-    current: GameKind,
-    games: [Box<dyn eframe::App>; 4],
-    on_switch: Box<dyn FnMut(GameKind)>,
-}
-
-impl GamesApp {
-    pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        initial: GameKind,
-        on_switch: Box<dyn FnMut(GameKind)>,
-    ) -> Self {
-        let games: [Box<dyn eframe::App>; 4] = [
-            Box::new(klondike_egui::KlondikeApp::new(
+    /// Construct only a game included in this WASM module's Cargo features.
+    pub fn create(self, cc: &eframe::CreationContext<'_>) -> Option<Box<dyn eframe::App>> {
+        let _ = cc;
+        match self {
+            #[cfg(feature = "klondike")]
+            Self::Klondike => Some(Box::new(klondike_egui::KlondikeApp::new(
                 cc,
                 klondike_egui::random_seed(),
                 klondike_core::Rules::default(),
-            )),
-            Box::new(sudoku_web::SudokuApp::new(
+            ))),
+            #[cfg(feature = "sudoku")]
+            Self::Sudoku => Some(Box::new(sudoku_web::SudokuApp::new(
                 cc,
                 sudoku_web::random_seed(),
                 sudoku_core::Difficulty::default(),
-            )),
-            Box::new(game2048_web::Game2048App::new(
+            ))),
+            #[cfg(feature = "2048")]
+            Self::Game2048 => Some(Box::new(game2048_web::Game2048App::new(
                 cc,
                 game2048_web::random_seed(),
-            )),
-            Box::new(minesweeper_web::MinesweeperApp::new(
+            ))),
+            #[cfg(feature = "minesweeper")]
+            Self::Minesweeper => Some(Box::new(minesweeper_web::MinesweeperApp::new(
                 cc,
                 minesweeper_web::random_seed(),
                 minesweeper_core::Config::BEGINNER,
-            )),
-        ];
-        Self::with_games(initial, games, on_switch)
-    }
-
-    fn with_games(
-        current: GameKind,
-        games: [Box<dyn eframe::App>; 4],
-        on_switch: Box<dyn FnMut(GameKind)>,
-    ) -> Self {
-        Self {
-            current,
-            games,
-            on_switch,
+            ))),
+            #[cfg(feature = "sokoban")]
+            Self::Sokoban => Some(Box::new(sokoban_web::SokobanApp::new(cc))),
+            #[cfg(feature = "nonogram")]
+            Self::Nonogram => Some(Box::new(nonogram_web::NonogramApp::new(cc))),
+            #[allow(unreachable_patterns)]
+            _ => None,
         }
-    }
-
-    pub fn current(&self) -> GameKind {
-        self.current
-    }
-
-    pub fn switch(&mut self, kind: GameKind) {
-        if kind != self.current {
-            self.current = kind;
-            (self.on_switch)(kind);
-        }
-    }
-
-    /// Returns the game chosen in the switcher this frame, if any.
-    fn switcher(&self, ui: &mut egui::Ui) -> Option<GameKind> {
-        let mut chosen = None;
-        egui::Panel::top("game-switcher")
-            .frame(
-                egui::Frame::new()
-                    .fill(BAR)
-                    .inner_margin(egui::Margin::symmetric(24, 6)),
-            )
-            .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("GAMES").size(11.0).color(GOLD).strong());
-                    for kind in GameKind::ALL {
-                        if ui
-                            .selectable_label(kind == self.current, kind.label())
-                            .clicked()
-                        {
-                            chosen = Some(kind);
-                        }
-                    }
-                });
-            });
-        chosen
-    }
-}
-
-impl eframe::App for GamesApp {
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        if let Some(kind) = self.switcher(ui) {
-            self.switch(kind);
-        }
-        self.games[self.current.index()].ui(ui, frame);
-    }
-
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        keep_visible(raw_input);
-    }
-}
-
-/// eframe 0.35 drops texture uploads from frames where the page is hidden.
-/// A page opened in a background tab then loses the initial font atlas and
-/// panics on its next partial update, so treat a hidden page as visible.
-/// Painting a hidden canvas is harmless.
-fn keep_visible(raw_input: &mut egui::RawInput) {
-    if let Some(viewport) = raw_input.viewports.get_mut(&egui::ViewportId::ROOT) {
-        viewport.occluded = Some(false);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn slugs_round_trip_and_ignore_the_hash_sign() {
@@ -177,40 +102,5 @@ mod tests {
         assert_eq!(GameKind::from_slug("#SUDOKU"), Some(GameKind::Sudoku));
         assert_eq!(GameKind::from_slug(""), None);
         assert_eq!(GameKind::from_slug("#chess"), None);
-    }
-
-    #[test]
-    fn hidden_pages_still_count_as_visible() {
-        let mut raw_input = egui::RawInput::default();
-        let viewport = raw_input
-            .viewports
-            .entry(egui::ViewportId::ROOT)
-            .or_default();
-        viewport.occluded = Some(true);
-        keep_visible(&mut raw_input);
-        let visible = raw_input.viewports[&egui::ViewportId::ROOT]
-            .visible()
-            .unwrap_or(true);
-        assert!(visible);
-    }
-
-    #[test]
-    fn switching_reports_only_real_changes() {
-        struct Blank;
-        impl eframe::App for Blank {
-            fn ui(&mut self, _ui: &mut egui::Ui, _frame: &mut eframe::Frame) {}
-        }
-        let seen = Rc::new(RefCell::new(Vec::new()));
-        let record = Rc::clone(&seen);
-        let mut app = GamesApp::with_games(
-            GameKind::Klondike,
-            std::array::from_fn(|_| Box::new(Blank) as Box<dyn eframe::App>),
-            Box::new(move |kind| record.borrow_mut().push(kind)),
-        );
-        app.switch(GameKind::Klondike);
-        app.switch(GameKind::Minesweeper);
-        app.switch(GameKind::Sudoku);
-        assert_eq!(app.current(), GameKind::Sudoku);
-        assert_eq!(*seen.borrow(), [GameKind::Minesweeper, GameKind::Sudoku]);
     }
 }

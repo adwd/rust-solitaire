@@ -2,9 +2,9 @@
 
 Rust 製のクロンダイク。`egui` / `eframe` の Web・デスクトップ版に加え、Bevy 0.20.0 の3Dデスクトップ版があります。どちらも `klondike-core` の配札・ルール・履歴・自動クリアを共有します。UI は英語です。
 
-Web 版では同じ構成で作った数独・2048・マインスイーパーも遊べます。画面上部の **GAMES** バーで切り替えられ、切り替えても各ゲームの進行は保持されます。
+Web 版では同じ構成で作った数独・2048・マインスイーパー・倉庫番・ノノグラムも遊べます。画面上部の **GAMES** バーで切り替えられ、切り替えても各ゲームの進行は保持されます。
 
-**Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)（[数独](https://adwd.github.io/rust-solitaire/#sudoku)・[2048](https://adwd.github.io/rust-solitaire/#2048)・[マインスイーパー](https://adwd.github.io/rust-solitaire/#minesweeper) を直接開くこともできます）
+**Web 版:** [GitHub Pages で遊ぶ](https://adwd.github.io/rust-solitaire/)（[数独](https://adwd.github.io/rust-solitaire/#sudoku)・[2048](https://adwd.github.io/rust-solitaire/#2048)・[マインスイーパー](https://adwd.github.io/rust-solitaire/#minesweeper)・[倉庫番](https://adwd.github.io/rust-solitaire/#sokoban)・[ノノグラム](https://adwd.github.io/rust-solitaire/#nonogram) を直接開くこともできます）
 
 ## 起動
 
@@ -99,6 +99,25 @@ Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run
 
 2048 はスワイプ、マインスイーパーは右クリック・長押し・Flag mode で旗を立てられます。
 
+## 倉庫番・ノノグラム
+
+Web 版の GAMES バーの **Sokoban**（倉庫番）と **Nonogram**（ノノグラム）から選びます。URL の `#sokoban`・`#nonogram` でも直接開けます。両ゲームともオリジナルの固定問題とランダム生成に対応し、ゲーム間の切り替えでは進行を保持します。
+
+- **倉庫番:** 固定8ステージに加え、New random で Small（7×7・箱2個）/ Medium（9×9・箱3個）/ Large（11×11・箱4個）の問題を生成できます。木箱をすべて金色のゴールへ押すとクリアです。箱は1つずつ押せますが、引くことはできません。ゴール上の箱は緑色のチェック付きになり、移動数・押した回数を表示します。矢印キー、WASD、画面の方向ボタン、またはプレイヤーに隣接するマスのクリック・タップで移動します。
+- **ノノグラム:** 5×5・10×10 各5問に加え、New random で同じ2サイズの問題を生成できます。固定・ランダムともにすべて一意解です。行・列の数字は連続して塗るマスの数を順番に示し、数字の間には1マス以上の空白が必要です。0 の行・列はすべて空白です。Fill / Cross / Erase から操作を選んでクリック・タップし、同じ印をもう一度押すと消せます。右クリックでも×印を付けられます。塗った並びが数字に一致した行・列はヒントが薄くなりますが、それだけで各マスの正解を保証するものではありません。絵を正しく塗るとクリアで、空白すべてに×を付ける必要はありません。
+
+| キー | 倉庫番 | ノノグラム |
+| --- | --- | --- |
+| 矢印 | 1マス移動 | 選択マスを移動 |
+| WASD | 1マス移動 | — |
+| Space / X | — | 塗る / ×印（再入力で消す） |
+| Backspace / Delete | — | 選択マスを消す |
+| Cmd・Ctrl + Z（+ Shift） | Undo（Redo） | Undo（Redo） |
+
+New random のシードは空欄なら毎回ランダム、整数を指定すると同じサイズ・シードで同じ問題を再現できます。倉庫番は完成状態から箱を引く逆操作で生成し、その操作を逆にたどると必ずクリアできます。ノノグラムは数字だけから解を数え、一意性を証明できた問題を採用します。探索回数に上限を設け、上限時には必ず一意になる構造の問題を生成します。ランダムなノノグラムは抽象的な模様です。
+
+問題選択、Restart、Undo / Redo、How to play を両ゲームに用意しています。プレイ中の問題変更・Restart は確認後に盤面と履歴をリセットします。Restart はランダム問題でも同じ盤面に戻ります。クリアすると次の固定問題、または新しいランダム問題へ進めます。リロード後の進行保存はありません。
+
 ## クレート構成
 
 | クレート | 責務 |
@@ -114,9 +133,13 @@ Bevy版はネイティブ向けです。既存の Web 版と通常の `cargo run
 | `game2048-web` | 2048 の egui 画面。タイル描画、キー・スワイプ入力、ベストスコア |
 | `minesweeper-core` | マインスイーパーの地雷配置（初手安全）、開放・連鎖・旗・コード、勝敗判定、公開情報だけを使うヒント推論 |
 | `minesweeper-web` | マインスイーパーの egui 画面。盤面描画、クリック・右クリック・長押し入力、経過時間 |
-| `games-web` | GitHub Pages 用の WASM ライブラリ。全ゲームの画面を保持し、GAMES バーと URL ハッシュで切り替えます |
+| `sokoban-core` | 倉庫番の8ステージとシード付きの可解なランダム生成、移動・押し出し、クリア判定、履歴 |
+| `sokoban-web` | 倉庫番の egui 画面。ステージ選択、キー・クリック・方向ボタン操作 |
+| `nonogram-core` | ノノグラムの10問とシード付きの一意解ランダム生成、数字ヒント、マスの状態、クリア判定、履歴 |
+| `nonogram-web` | ノノグラムの egui 画面。問題選択、塗り・×印・消去、キーボード操作 |
+| `games-web` | GitHub Pages 用の WASM 起動クレート。Cargo feature でゲームを1つずつ含めてビルドし、HTML の GAMES バーから必要なモジュールだけを読み込みます |
 
-依存方向は既存の両方の起動クレート → `klondike-egui` → `klondike-core`、3D版は `klondike-bevy` → `klondike-core` です。追加したゲームは `<game>-web` → `<game>-core` で、`games-web` が4つの画面クレートをまとめます。各コアは `klondike-core` と同じく GUI・GPU・時計・I/O に依存せず、ChaCha8 のシードで決定的に動き、不正な操作では状態を変えません。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。
+依存方向は既存の両方の起動クレート → `klondike-egui` → `klondike-core`、3D版は `klondike-bevy` → `klondike-core` です。追加したゲームは `<game>-web` → `<game>-core` で、`games-web` はゲームごとに必要な画面クレートだけを含む6つのモジュールとしてビルドします。各コアは `klondike-core` と同じく GUI・GPU・時計・I/O に依存せず、不正な操作では状態を変えません。ランダムな盤面を扱うコアは ChaCha8 のシードで決定的に動き、倉庫番とノノグラムは固定問題とシード付きランダム問題を使います。プラットフォーム固有の設定は起動クレートに置きます。時計には `web-time`、ブラウザの乱数には `getrandom` の `wasm_js` を使い、コアの決定的な配札は共有します。クロンダイクは macOS では Metal、Web では WebGPU を優先し、利用できない場合は WebGL にフォールバックします。他の5ゲームの Web 版は軽量な `egui_glow` の WebGL 描画を使います。
 
 GUI は読み取り用の `Game::view()` を使い、変更は `Game::apply(Action)` を通します。無効な操作は盤面・手数・Undo / Redo 履歴を変更しません。ドラッグ中もコアは変えず、ドロップ時に操作を確定します。
 
@@ -140,30 +163,45 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo build --release -p klondike-desktop --locked
 cargo clippy -p games-web -p klondike-web --target wasm32-unknown-unknown --locked -- -D warnings
+node --test web/tests/*.test.mjs
 ```
 
 コアだけのテストにはウィンドウや GPU は必要ありません。
 
 ```sh
-cargo test -p klondike-core -p sudoku-core -p game2048-core -p minesweeper-core --locked
+cargo test -p klondike-core -p sudoku-core -p game2048-core -p minesweeper-core -p sokoban-core -p nonogram-core --locked
 cargo tree -p klondike-core --edges normal
 ```
 
 ルールの境界条件、再巡回の順序、無効操作、勝利と履歴を検証します。プロパティテストでは複数のシードと操作列で52枚の不変条件と履歴の往復を確認します。GUI の入力テストは実際の egui のポインターイベントでクリックとドラッグを検証します。追加したゲームのコアは、数独の解の一意性、2048 のタイル総和の保存と履歴の往復、マインスイーパーの数字と地雷の整合、ヒントだけに従って遊んでも一度も地雷を開かないことをプロパティテストで確認し、画面クレートはキー・クリック・スワイプのイベントで操作を検証します。
 
+倉庫番は全ステージを独立した幅優先探索で解き、クリアまでの操作と全 Undo / Redo を検証します。ノノグラムは行・列のヒントだけから解を数え、全10問の一意性、空行、誤った塗り、クリア・履歴を検証します。ランダム生成も複数のシード・全サイズで可解性、一意性、再現性、履歴とRestartを検証します。両画面では実際の egui 入力イベントでキー・クリック・右クリックとダイアログ中の入力抑制を確認します。遅延読み込みは、進行保持、連続切り替えの競合、失敗後の再試行、ロード中の終了を JavaScript のテストで確認します。
+
 ## Web 版のビルドと公開
 
 ```sh
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
-cargo build --release --locked --target wasm32-unknown-unknown -p games-web --target-dir target
-mkdir -p dist/pkg
-wasm-bindgen --target web --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/games_web.wasm
-cp -R web/. dist/
+bash scripts/build-web.sh
 ```
+
+`scripts/build-web.sh` は `klondike` / `sudoku` / `2048` / `minesweeper` / `sokoban` / `nonogram` の feature を1つずつ指定し、`dist/pkg/<game>/` に独立した WASM と JavaScript を生成します。`web` プロファイルのサイズ最適化・LTO と不要な名前セクションの除去を使用します。ネイティブの release 設定は変更しません。CLI の場所を指定する場合は `WASM_BINDGEN=/path/to/wasm-bindgen bash scripts/build-web.sh` とします。
+
+初回は選んだゲームのモジュールだけを読み込みます。他のゲームは最初の切り替え時に読み込み、以後は同じランナーを再利用するので盤面とUndo履歴を保持します。非表示ゲームへの入力・更新は止めます。各モジュールに描画エンジンが含まれるため、全6ゲームを開く場合の合計ダウンロード量は単一モジュールより増えます。
+
+2026年10月12日のビルドで、変更前の全ゲーム入り WASM は 9.64 MiB（10,107,885 bytes）でした。分割・サイズ最適化・2Dパズルの描画バックエンド変更後の実測値は以下のとおりです。HTTP 圧縮前の WASM 本体だけを比較しています。
+
+| モジュール | WASM サイズ | 変更前からの削減 |
+| --- | ---: | ---: |
+| Klondike | 7.32 MiB | 24.1% |
+| Sudoku | 5.44 MiB | 43.6% |
+| 2048 | 5.43 MiB | 43.7% |
+| Minesweeper | 5.47 MiB | 43.2% |
+| Sokoban | 5.46 MiB | 43.3% |
+| Nonogram | 5.47 MiB | 43.3% |
 
 生成した `dist/` を静的 HTTP サーバーで配信すると、ローカルでも遊べます。`rust-toolchain.toml` が WASM ターゲットを導入します。CLI のバージョンは `Cargo.lock` と一致させます。出力先は `--target-dir target` で明示し、Python や Cargo メタデータの解析は使いません。`dist/` は HTML・JavaScript・CSS・WASM だけの静的サイトです。パスは相対指定のため、GitHub Pages の `/rust-solitaire/` 以下でも動作します。ブラウザは JavaScript と GPU 描画が必要です。リロードすると進行中のゲームと 2048 のベストスコアは失われます。Pages には `games-web` を配置します。`klondike-web` はクロンダイク単体の WASM 起動クレートとして残しています。
 
-`.github/workflows/pages.yml` 内に Web のビルド・ファイル配置・Pages 公開をまとめています。macOS 上のテストとアプリ作成、Linux 上の WASM ビルドが両方成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
+`.github/workflows/pages.yml` は上記スクリプトで Web をビルドし、Pages へ公開します。macOS 上のテストとアプリ作成、Linux 上の WASM ビルドが両方成功した `main` の変更だけを GitHub Pages へ公開します。Pull request では検証だけを実行します。リポジトリの Settings → Pages → Source は **GitHub Actions** を使います。
 
 ## macOS アプリの作成
 
