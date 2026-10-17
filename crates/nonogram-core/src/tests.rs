@@ -103,6 +103,29 @@ fn marks_history_invalid_edits_and_restart() {
 }
 
 #[test]
+fn batch_edits_are_one_history_step_and_ignore_no_ops() {
+    let mut game = Game::default();
+    assert!(game.apply_batch([
+        (0, 0, Cell::Filled),
+        (0, 1, Cell::Crossed),
+        (0, 2, Cell::Filled),
+    ]));
+    assert_eq!(game.moves(), 3);
+    assert_eq!(game.cell(0, 0), Some(Cell::Filled));
+    assert_eq!(game.cell(0, 1), Some(Cell::Crossed));
+    assert_eq!(game.cell(0, 2), Some(Cell::Filled));
+    assert!(game.undo());
+    assert_eq!(game.moves(), 0);
+    assert!((0..3).all(|col| game.cell(0, col) == Some(Cell::Unknown)));
+    assert!(game.can_redo());
+
+    assert!(!game.apply_batch([(0, 0, Cell::Unknown)]));
+    assert!(!game.apply_batch([(game.size(), 0, Cell::Filled)]));
+    assert!(game.can_redo());
+    assert_eq!(game.moves(), 0);
+}
+
+#[test]
 fn wrong_filled_squares_prevent_completion() {
     let mut game = Game::default();
     assert!(game.apply(0, 0, Cell::Filled));

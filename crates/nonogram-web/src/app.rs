@@ -15,12 +15,24 @@ enum Dialog {
     },
 }
 
+/// A pointer stroke that paints the same mark on every square it crosses.
+/// Nothing is written to the game until the pointer is released, so the whole
+/// drag becomes one undo step.
+struct DragStroke {
+    start: (usize, usize),
+    value: Cell,
+    cells: Vec<(usize, usize)>,
+    last: egui::Pos2,
+    button: egui::PointerButton,
+}
+
 pub struct NonogramApp {
     game: Game,
     selected: (usize, usize),
     mode: Cell,
     dialog: Option<Dialog>,
     board_rect: Option<Rect>,
+    stroke: Option<DragStroke>,
 }
 
 impl NonogramApp {
@@ -36,6 +48,7 @@ impl NonogramApp {
             mode: Cell::Filled,
             dialog: None,
             board_rect: None,
+            stroke: None,
         }
     }
 
@@ -49,6 +62,7 @@ impl NonogramApp {
             self.selected = (0, 0);
             self.mode = Cell::Filled;
             self.dialog = None;
+            self.stroke = None;
         }
     }
 
@@ -185,7 +199,7 @@ impl NonogramApp {
                 ui.selectable_value(&mut self.mode, Cell::Crossed, "× Cross");
                 ui.selectable_value(&mut self.mode, Cell::Unknown, "Erase");
                 ui.label(
-                    RichText::new("Right-click to cross a square")
+                    RichText::new("Drag to mark a run · right-click to cross")
                         .small()
                         .color(theme::MUTED),
                 );
@@ -198,6 +212,157 @@ impl NonogramApp {
                 }
             });
         });
+    }
+
+    fn cell_at(pos: egui::Pos2, grid: Rect, cell: f32, n: usize) -> Option<(usize, usize)> {
+        if !grid.contains(pos) {
+            return None;
+        }
+        let col = ((pos.x - grid.left()) / cell).floor() as usize;
+        let row = ((pos.y - grid.top()) / cell).floor() as usize;
+        (row < n && col < n).then_some((row, col))
+    }
+
+    fn begin_stroke(
+        &mut self,
+        pos: egui::Pos2,
+        grid: Rect,
+        cell: f32,
+        button: egui::PointerButton,
+    ) {
+        let Some(start) = Self::cell_at(pos, grid, cell, self.game.size()) else {
+            return;
+        };
+        let mode = if button == egui::PointerButton::Secondary {
+            Cell::Crossed
+        } else {
+            self.mode
+        };
+        // Starting on a square that already has this mark erases instead, so
+        // dragging over a filled run clears the whole run.
+        let value = if self.game.cell(start.0, start.1) == Some(mode) {
+            Cell::Unknown
+        } else {
+            mode
+        };
+        self.selected = start;
+        self.stroke = Some(DragStroke {
+            start,
+            value,
+            cells: vec![start],
+            last: pos,
+            button,
+        });
+    }
+
+    /// Adds every square the pointer passed over to the stroke. Sampling along
+    /// the segment keeps fast drags from skipping squares between frames.
+    fn extend_stroke(&mut self, pos: egui::Pos2, grid: Rect, cell: f32) {
+        let n = self.game.size();
+        let Some(stroke) = &mut self.stroke else {
+            return;
+        };
+        let from = stroke.last;
+        let steps = (((pos - from).length() / (cell * 0.3)).ceil() as usize).max(1);
+        let mut reached = None;
+        for step in 0..=steps {
+            let sample = from + (pos - from) * (step as f32 / steps as f32);
+            let Some(square) = Self::cell_at(sample, grid, cell, n) else {
+                continue;
+            };
+            if !stroke.cells.contains(&square) {
+                stroke.cells.push(square);
+            }
+            reached = Some(square);
+        }
+        stroke.last = pos;
+        if let Some(square) = reached {
+            self.selected = square;
+        }
+    }
+
+    fn finish_stroke(&mut self) {
+        let Some(stroke) = self.stroke.take() else {
+            return;
+        };
+        let edits: Vec<_> = stroke
+            .cells
+            .into_iter()
+            .filter(|&(row, col)| self.game.cell(row, col) != Some(stroke.value))
+            .map(|(row, col)| (row, col, stroke.value))
+            .collect();
+        self.game.apply_batch(edits);
+    }
+
+    fn pointer(&mut self, ui: &egui::Ui, response: &egui::Response, grid: Rect, cell: f32) {
+        if !response.enabled() || self.game.is_won() {
+            self.stroke = None;
+            return;
+        }
+        let (
+            primary_pressed,
+            secondary_pressed,
+            primary_released,
+            secondary_released,
+            any_down,
+            pos,
+        ) = ui.input(|i| {
+            (
+                i.pointer.primary_pressed(),
+                i.pointer.secondary_pressed(),
+                i.pointer.primary_released(),
+                i.pointer.secondary_released(),
+                i.pointer.any_down(),
+                i.pointer.interact_pos(),
+            )
+        });
+        if self.stroke.is_none() {
+            let button = if primary_pressed {
+                Some(egui::PointerButton::Primary)
+            } else if secondary_pressed {
+                Some(egui::PointerButton::Secondary)
+            } else {
+                None
+            };
+            if let (Some(button), Some(pos)) = (button, pos) {
+                self.begin_stroke(pos, grid, cell, button);
+            }
+        }
+        // A long touch still places a cross, matching the old secondary click.
+        if response.long_touched()
+            && let Some(stroke) = &mut self.stroke
+        {
+            stroke.value = if self.game.cell(stroke.start.0, stroke.start.1) == Some(Cell::Crossed)
+            {
+                Cell::Unknown
+            } else {
+                Cell::Crossed
+            };
+        }
+        let Some(button) = self.stroke.as_ref().map(|stroke| stroke.button) else {
+            return;
+        };
+        if let Some(pos) = pos {
+            self.extend_stroke(pos, grid, cell);
+        }
+        let released = match button {
+            egui::PointerButton::Primary => primary_released,
+            egui::PointerButton::Secondary => secondary_released,
+            _ => false,
+        };
+        if released || !any_down {
+            self.finish_stroke();
+        }
+    }
+
+    fn displayed_cell(&self, row: usize, col: usize) -> Cell {
+        if let Some(stroke) = &self.stroke
+            && stroke.cells.contains(&(row, col))
+        {
+            stroke.value
+        } else {
+            self.game.cell(row, col).unwrap_or_default()
+        }
     }
 
     fn clue_space(&self) -> (f32, f32) {
@@ -231,25 +396,8 @@ impl NonogramApp {
             Vec2::splat(n as f32 * cell),
         );
         self.board_rect = Some(grid);
-        let response = ui.interact(grid, Id::new("nonogram-grid"), Sense::click());
-        if (response.clicked() || response.secondary_clicked())
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            let col = ((pos.x - grid.left()) / cell) as usize;
-            let row = ((pos.y - grid.top()) / cell) as usize;
-            if row < n && col < n {
-                self.selected = (row, col);
-                self.mark(
-                    row,
-                    col,
-                    if response.secondary_clicked() {
-                        Cell::Crossed
-                    } else {
-                        self.mode
-                    },
-                );
-            }
-        }
+        let response = ui.interact(grid, Id::new("nonogram-grid"), Sense::click_and_drag());
+        self.pointer(ui, &response, grid, cell);
         let painter = ui.painter_at(area.expand(2.0));
         let font = FontId::proportional(cell * 0.44);
         for row in 0..n {
@@ -292,7 +440,7 @@ impl NonogramApp {
                     grid.min + Vec2::new(col as f32, row as f32) * cell,
                     Vec2::splat(cell),
                 );
-                let value = self.game.cell(row, col).unwrap_or_default();
+                let value = self.displayed_cell(row, col);
                 let fill = if value == Cell::Filled {
                     theme::GOLD
                 } else {
@@ -359,7 +507,8 @@ impl NonogramApp {
                         "Reveal a picture using the numbers beside each row and above each column.",
                         "Each number is a run of filled squares, in order. Leave at least one empty square between runs.",
                         "For example, 2 1 means two filled squares, a gap of at least one, then one filled square. A 0 means the line is empty.",
-                        "Click or tap to use the selected mark. Click again to erase it. Right-click places an X; on touch screens choose Cross.",
+                        "Click or tap to use the selected mark. Click again to erase it. Drag across squares to mark a whole run at once, then undo it as one step.",
+                        "Right-click places an X; right-drag crosses several squares. On touch screens choose Cross.",
                         "Arrow keys move the blue cursor. Space fills, X crosses, and Backspace / Delete erases.",
                         "Clues dim when the visible filled runs match. A dimmed clue alone does not guarantee those squares are correct.",
                         "Fill the complete picture to win. Crossing every empty square is optional.",
@@ -405,6 +554,7 @@ impl NonogramApp {
         });
         if restart {
             self.game.restart();
+            self.stroke = None;
         } else if let Some(source) = start {
             self.start(source);
         } else if !close && !response.should_close() {
@@ -424,7 +574,7 @@ impl NonogramApp {
             .show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("nonogram-status")
             .frame(egui::Frame::new().fill(theme::CHROME).inner_margin(12))
-            .show(ui, |ui| { ui.label(RichText::new("Numbers give filled runs in order. Leave a gap between runs. Space: fill · X: cross · Delete: erase").color(theme::MUTED)); });
+            .show(ui, |ui| { ui.label(RichText::new("Numbers give filled runs in order. Leave a gap between runs. Drag to mark a run · Space: fill · X: cross · Delete: erase").color(theme::MUTED)); });
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::BOARD).inner_margin(16))
             .show(ui, |ui| {

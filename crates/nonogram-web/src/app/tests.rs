@@ -64,6 +64,33 @@ impl Harness {
             modifiers: Modifiers::NONE,
         }]);
     }
+
+    fn drag(&mut self, from: (usize, usize), to: (usize, usize), button: PointerButton) {
+        let rect = self.app.board_rect.unwrap();
+        let cell = rect.width() / self.app.game.size() as f32;
+        let pos = |(row, col): (usize, usize)| {
+            rect.min + Vec2::new(col as f32 + 0.5, row as f32 + 0.5) * cell
+        };
+        let start = pos(from);
+        let end = pos(to);
+        self.frame(vec![
+            Event::PointerMoved(start),
+            Event::PointerButton {
+                pos: start,
+                button,
+                pressed: true,
+                modifiers: Modifiers::NONE,
+            },
+        ]);
+        self.frame(vec![Event::PointerMoved(start + (end - start) * 0.5)]);
+        self.frame(vec![Event::PointerMoved(end)]);
+        self.frame(vec![Event::PointerButton {
+            pos: end,
+            button,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
 }
 
 #[test]
@@ -81,6 +108,65 @@ fn primary_secondary_and_touch_mode_marks_can_be_erased() {
     h.app.mode = Cell::Unknown;
     h.click(0, 1, PointerButton::Primary);
     assert_eq!(h.app.game.cell(0, 1), Some(Cell::Unknown));
+}
+
+#[test]
+fn dragging_paints_a_run_and_undoes_it_in_one_step() {
+    let mut h = Harness::new();
+    h.drag((0, 0), (0, 4), PointerButton::Primary);
+    assert!((0..5).all(|col| h.app.game.cell(0, col) == Some(Cell::Filled)));
+    assert!((0..5).all(|col| h.app.game.cell(1, col) == Some(Cell::Unknown)));
+    assert_eq!(h.app.game.moves(), 5);
+    assert_eq!(h.app.selected, (0, 4));
+
+    h.key(Key::Z, Modifiers::COMMAND);
+    assert!((0..5).all(|col| h.app.game.cell(0, col) == Some(Cell::Unknown)));
+    assert_eq!(h.app.game.moves(), 0);
+    h.key(Key::Z, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!((0..5).all(|col| h.app.game.cell(0, col) == Some(Cell::Filled)));
+}
+
+#[test]
+fn dragging_over_an_existing_mark_erases_the_run() {
+    let mut h = Harness::new();
+    h.drag((0, 0), (0, 4), PointerButton::Primary);
+    h.drag((0, 0), (0, 4), PointerButton::Primary);
+    assert!((0..5).all(|col| h.app.game.cell(0, col) == Some(Cell::Unknown)));
+    assert_eq!(h.app.game.moves(), 10);
+}
+
+#[test]
+fn secondary_drag_crosses_several_squares() {
+    let mut h = Harness::new();
+    h.drag((2, 0), (2, 4), PointerButton::Secondary);
+    assert!((0..5).all(|col| h.app.game.cell(2, col) == Some(Cell::Crossed)));
+    assert_eq!(h.app.game.moves(), 5);
+}
+
+#[test]
+fn a_fast_drag_does_not_skip_squares() {
+    let mut h = Harness::new();
+    let rect = h.app.board_rect.unwrap();
+    let cell = rect.width() / h.app.game.size() as f32;
+    let start = rect.min + Vec2::new(0.5, 0.5) * cell;
+    let end = rect.min + Vec2::new(4.5, 0.5) * cell;
+    h.frame(vec![
+        Event::PointerMoved(start),
+        Event::PointerButton {
+            pos: start,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        },
+    ]);
+    h.frame(vec![Event::PointerMoved(end)]);
+    h.frame(vec![Event::PointerButton {
+        pos: end,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    assert!((0..5).all(|col| h.app.game.cell(0, col) == Some(Cell::Filled)));
 }
 
 #[test]

@@ -179,6 +179,35 @@ impl Game {
         true
     }
 
+    /// Applies several marks as one history entry, so a drag can be undone in
+    /// a single step. Out-of-range cells and cells that already hold the
+    /// requested mark are ignored.
+    pub fn apply_batch(&mut self, edits: impl IntoIterator<Item = (usize, usize, Cell)>) -> bool {
+        if self.is_won() {
+            return false;
+        }
+        let mut next = self.state.clone();
+        let mut changed = 0;
+        for (row, col, cell) in edits {
+            if row >= self.size || col >= self.size {
+                continue;
+            }
+            let index = row * self.size + col;
+            if next.cells[index] != cell {
+                next.cells[index] = cell;
+                changed += 1;
+            }
+        }
+        if changed == 0 {
+            return false;
+        }
+        next.moves += changed;
+        self.past.push(self.state.clone());
+        self.future.clear();
+        self.state = next;
+        true
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.past.is_empty()
     }
