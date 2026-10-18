@@ -412,31 +412,33 @@ impl eframe::App for KlondikeApp {
             .frame(
                 egui::Frame::new()
                     .fill(theme::CHROME)
-                    .inner_margin(egui::Margin::symmetric(24, 16)),
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+                ui.spacing_mut().button_padding = egui::vec2(10.0, 5.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("RUST").size(12.0).color(theme::GOLD).strong());
-                    ui.label(RichText::new("SOLITAIRE").size(25.0).strong());
+                    ui.label(RichText::new("RUST").size(10.0).color(theme::GOLD).strong());
+                    ui.label(RichText::new("SOLITAIRE").size(21.0).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let v = self.game.view();
                         let completed: usize = v.foundations.iter().map(Vec::len).sum();
                         ui.label(
                             RichText::new(format!("{completed} / 52"))
-                                .size(17.0)
+                                .size(15.0)
                                 .color(theme::GOLD),
                         );
                         ui.separator();
                         ui.label(
                             RichText::new(format_time(self.clock.elapsed()))
                                 .monospace()
-                                .size(17.0),
+                                .size(15.0),
                         );
                         ui.separator();
                         ui.label(format!("{} moves", v.moves));
                     });
                 });
-                ui.add_space(10.0);
+                ui.add_space(4.0);
                 ui.add_enabled_ui(self.dialog.is_none(), |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui

@@ -162,26 +162,28 @@ impl MinesweeperApp {
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        ui.spacing_mut().button_padding = Vec2::new(10.0, 5.0);
         ui.horizontal(|ui| {
-            ui.label(RichText::new("RUST").size(12.0).color(theme::GOLD).strong());
-            ui.label(RichText::new("MINESWEEPER").size(25.0).strong());
+            ui.label(RichText::new("RUST").size(10.0).color(theme::GOLD).strong());
+            ui.label(RichText::new("MINESWEEPER").size(21.0).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(format!("{} mines", self.game.mines_left()))
-                        .size(17.0)
+                        .size(15.0)
                         .color(theme::GOLD),
                 );
                 ui.separator();
                 ui.label(
                     RichText::new(format_time(self.clock.elapsed()))
                         .monospace()
-                        .size(17.0),
+                        .size(15.0),
                 );
                 ui.separator();
                 ui.label(Self::preset_name(self.game.config()));
             });
         });
-        ui.add_space(10.0);
+        ui.add_space(4.0);
         ui.add_enabled_ui(self.dialog.is_none(), |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.button("New game").clicked() {
@@ -350,7 +352,7 @@ impl MinesweeperApp {
             .frame(
                 egui::Frame::new()
                     .fill(theme::CHROME)
-                    .inner_margin(egui::Margin::symmetric(24, 16)),
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("minesweeper-status")
