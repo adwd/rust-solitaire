@@ -7,20 +7,23 @@ pub enum Size {
     #[default]
     Small,
     Large,
+    ExtraLarge,
 }
 
 impl Size {
-    pub const ALL: [Self; 2] = [Self::Small, Self::Large];
+    pub const ALL: [Self; 3] = [Self::Small, Self::Large, Self::ExtraLarge];
     pub const fn side(self) -> usize {
         match self {
             Self::Small => 5,
             Self::Large => 10,
+            Self::ExtraLarge => 15,
         }
     }
     pub const fn label(self) -> &'static str {
         match self {
             Self::Small => "5 x 5",
             Self::Large => "10 x 10",
+            Self::ExtraLarge => "15 x 15",
         }
     }
 }
@@ -189,8 +192,11 @@ mod tests {
     #[test]
     fn generated_puzzles_are_unique_reproducible_and_restartable() {
         for size in Size::ALL {
+            // A single 15 x 15 uniqueness check is much more expensive than
+            // the smaller boards, so cover it with fewer seeds.
+            let seeds = if size == Size::ExtraLarge { 6 } else { 48 };
             let mut pictures = std::collections::HashSet::new();
-            for seed in 0..48 {
+            for seed in 0..seeds {
                 let mut game = Game::random(seed, size);
                 assert_eq!(game.solution, Game::random(seed, size).solution);
                 let rows = game
@@ -221,7 +227,7 @@ mod tests {
                 assert!(!game.is_won());
                 assert!(!game.can_undo() && !game.can_redo());
             }
-            assert_eq!(pictures.len(), 48);
+            assert_eq!(pictures.len() as u64, seeds);
         }
     }
 }

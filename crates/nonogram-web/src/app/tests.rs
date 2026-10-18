@@ -170,6 +170,19 @@ fn a_fast_drag_does_not_skip_squares() {
 }
 
 #[test]
+fn fifteen_by_fifteen_board_accepts_drag_marks() {
+    let mut h = Harness::new();
+    h.app.game = Game::random(4, Size::ExtraLarge);
+    h.app.selected = (0, 0);
+    h.app.stroke = None;
+    h.frame(vec![]);
+    assert_eq!(h.app.game.size(), 15);
+    h.drag((14, 0), (14, 4), PointerButton::Primary);
+    assert!((0..5).all(|col| h.app.game.cell(14, col) == Some(Cell::Filled)));
+    assert_eq!(h.app.game.moves(), 5);
+}
+
+#[test]
 fn keyboard_selection_marks_and_history() {
     let mut h = Harness::new();
     h.key(Key::ArrowRight, Modifiers::NONE);

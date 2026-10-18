@@ -163,10 +163,10 @@ impl NonogramApp {
                     self.request_start(Source::Puzzle(puzzle));
                 }
                 if ui.button("New random").clicked() {
-                    let size = if self.game.size() == 10 {
-                        Size::Large
-                    } else {
-                        Size::Small
+                    let size = match self.game.size() {
+                        15 => Size::ExtraLarge,
+                        10 => Size::Large,
+                        _ => Size::Small,
                     };
                     self.dialog = Some(Dialog::Random {
                         seed: String::new(),
@@ -562,6 +562,46 @@ impl NonogramApp {
         }
     }
 
+    fn status(&mut self, ui: &mut egui::Ui) {
+        if !self.game.is_won() {
+            ui.label(
+                RichText::new("Numbers give filled runs in order. Leave a gap between runs. Drag to mark a run · Space: fill · X: cross · Delete: erase")
+                    .color(theme::MUTED),
+            );
+            return;
+        }
+        let source = self.game.source();
+        let mut next = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(format!("Picture complete: {}!", self.game.name()))
+                    .size(20.0)
+                    .color(theme::GOLD),
+            );
+            ui.add_enabled_ui(self.dialog.is_none(), |ui| match source {
+                Source::Puzzle(puzzle) if puzzle + 1 < PUZZLE_COUNT => {
+                    if ui.button("Next puzzle").clicked() {
+                        next = Some(Source::Puzzle(puzzle + 1));
+                    }
+                }
+                Source::Random { size, .. } => {
+                    if ui.button("New random puzzle").clicked() {
+                        next = Some(Source::Random {
+                            seed: crate::random_seed(),
+                            size,
+                        });
+                    }
+                }
+                _ => {
+                    ui.label(RichText::new("Try New random for more puzzles.").color(theme::MUTED));
+                }
+            });
+        });
+        if let Some(source) = next {
+            self.start(source);
+        }
+    }
+
     pub(crate) fn show(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         self.shortcuts(&ctx);
@@ -574,48 +614,18 @@ impl NonogramApp {
             .show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("nonogram-status")
             .frame(egui::Frame::new().fill(theme::CHROME).inner_margin(12))
-            .show(ui, |ui| { ui.label(RichText::new("Numbers give filled runs in order. Leave a gap between runs. Drag to mark a run · Space: fill · X: cross · Delete: erase").color(theme::MUTED)); });
+            .show(ui, |ui| self.status(ui));
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::BOARD).inner_margin(16))
             .show(ui, |ui| {
                 let (left, top) = self.clue_space();
-                let cell = (ui.available_width() / (self.game.size() as f32 + left))
-                    .min((ui.available_height() - 85.0) / (self.game.size() as f32 + top))
-                    .clamp(24.0, 48.0);
+                let min_cell = if self.game.size() >= 15 { 16.0 } else { 24.0 };
+                let cell = ((ui.available_width() - 4.0) / (self.game.size() as f32 + left))
+                    .min((ui.available_height() - 4.0) / (self.game.size() as f32 + top))
+                    .clamp(min_cell, 48.0);
                 egui::ScrollArea::both().show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        ui.add_enabled_ui(self.dialog.is_none(), |ui| {
-                            self.board(ui, cell);
-                            ui.add_space(12.0);
-                            if self.game.is_won() {
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Picture complete: {}!",
-                                        self.game.name()
-                                    ))
-                                    .size(24.0)
-                                    .color(theme::GOLD),
-                                );
-                                match self.game.source() {
-                                    Source::Puzzle(puzzle) if puzzle + 1 < PUZZLE_COUNT => {
-                                        if ui.button("Next puzzle").clicked() {
-                                            self.start(Source::Puzzle(puzzle + 1));
-                                        }
-                                    }
-                                    Source::Random { size, .. } => {
-                                        if ui.button("New random puzzle").clicked() {
-                                            self.start(Source::Random {
-                                                seed: crate::random_seed(),
-                                                size,
-                                            });
-                                        }
-                                    }
-                                    _ => {
-                                        ui.label("Try New random for more puzzles.");
-                                    }
-                                }
-                            }
-                        });
+                        ui.add_enabled_ui(self.dialog.is_none(), |ui| self.board(ui, cell));
                     });
                 });
             });

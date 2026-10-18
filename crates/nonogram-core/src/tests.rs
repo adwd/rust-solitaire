@@ -140,3 +140,14 @@ fn wrong_filled_squares_prevent_completion() {
     assert!(game.apply(0, 0, Cell::Crossed));
     assert!(game.is_won());
 }
+
+#[test]
+fn sizes_expose_fifteen_by_fifteen() {
+    assert_eq!(Size::ExtraLarge.side(), 15);
+    assert_eq!(Size::ExtraLarge.label(), "15 x 15");
+    assert!(Size::ALL.contains(&Size::ExtraLarge));
+    let game = Game::random(0, Size::ExtraLarge);
+    assert_eq!(game.size(), 15);
+    assert_eq!(game.row_clues().len(), 15);
+    assert_eq!(game.column_clues().len(), 15);
+}
