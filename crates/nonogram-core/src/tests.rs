@@ -151,3 +151,11 @@ fn sizes_expose_fifteen_by_fifteen() {
     assert_eq!(game.row_clues().len(), 15);
     assert_eq!(game.column_clues().len(), 15);
 }
+
+#[test]
+fn clue_spans_include_mandatory_gaps() {
+    assert_eq!(clue_span(&[1, 2, 2, 1]), 9);
+    assert_eq!(clue_span(&[2, 2]), 5);
+    assert_eq!(clue_span(&[5]), 5);
+    assert_eq!(clue_span(&[0]), 0);
+}

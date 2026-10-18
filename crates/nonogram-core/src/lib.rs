@@ -43,6 +43,12 @@ pub fn clues(line: impl IntoIterator<Item = bool>) -> Vec<usize> {
     result
 }
 
+/// Minimum line length that can hold these runs: the filled squares plus
+/// the mandatory gap between each pair of runs. `[0]` spans no squares.
+pub fn clue_span(clue: &[usize]) -> usize {
+    clue.iter().sum::<usize>() + clue.len().saturating_sub(1)
+}
+
 pub fn puzzle_size(puzzle: usize) -> Option<usize> {
     puzzles::PUZZLES.get(puzzle).map(|(_, rows)| rows.len())
 }

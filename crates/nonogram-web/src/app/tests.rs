@@ -183,6 +183,20 @@ fn fifteen_by_fifteen_board_accepts_drag_marks() {
 }
 
 #[test]
+fn line_span_toggle_expands_clue_space_and_persists() {
+    let mut h = Harness::new();
+    let (left, top) = h.app.clue_space();
+    h.key(Key::L, Modifiers::NONE);
+    assert!(h.app.show_spans);
+    let (span_left, span_top) = h.app.clue_space();
+    assert!(span_left > left && span_top > top);
+    h.app.start(Source::Puzzle(5));
+    assert!(h.app.show_spans);
+    h.key(Key::L, Modifiers::NONE);
+    assert!(!h.app.show_spans);
+}
+
+#[test]
 fn keyboard_selection_marks_and_history() {
     let mut h = Harness::new();
     h.key(Key::ArrowRight, Modifiers::NONE);

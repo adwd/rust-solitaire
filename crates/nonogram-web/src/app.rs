@@ -2,7 +2,7 @@ use crate::theme;
 use eframe::egui::{
     self, Align2, Color32, FontId, Id, Key, Modifiers, Rect, RichText, Sense, Stroke, Vec2,
 };
-use nonogram_core::{Cell, Game, PUZZLE_COUNT, Size, Source, puzzle_size};
+use nonogram_core::{Cell, Game, PUZZLE_COUNT, Size, Source, clue_span, puzzle_size};
 
 enum Dialog {
     Help,
@@ -33,6 +33,7 @@ pub struct NonogramApp {
     dialog: Option<Dialog>,
     board_rect: Option<Rect>,
     stroke: Option<DragStroke>,
+    show_spans: bool,
 }
 
 impl NonogramApp {
@@ -49,6 +50,7 @@ impl NonogramApp {
             dialog: None,
             board_rect: None,
             stroke: None,
+            show_spans: false,
         }
     }
 
@@ -92,6 +94,9 @@ impl NonogramApp {
         } else if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
             self.game.undo();
         }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::L)) {
+            self.show_spans = !self.show_spans;
+        }
         for (key, dr, dc) in [
             (Key::ArrowUp, -1, 0),
             (Key::ArrowDown, 1, 0),
@@ -124,23 +129,20 @@ impl NonogramApp {
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new("RUST").size(12.0).color(theme::GOLD).strong());
-            ui.label(RichText::new("Nonogram").size(25.0).strong());
-            ui.separator();
-            ui.label(format!("{} × {}", self.game.size(), self.game.size()));
-            ui.label(format!("{} moves", self.game.moves()));
-        });
-        ui.add_space(8.0);
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        ui.spacing_mut().button_padding = Vec2::new(10.0, 5.0);
         ui.add_enabled_ui(self.dialog.is_none(), |ui| {
             ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("RUST").size(10.0).color(theme::GOLD).strong());
+                ui.label(RichText::new("Nonogram").size(21.0).strong());
+                ui.separator();
                 let mut puzzle = self.game.puzzle();
                 egui::ComboBox::from_id_salt("nonogram-puzzle")
                     .selected_text(puzzle.map_or_else(
-                        || format!("Random · {} x {}", self.game.size(), self.game.size()),
+                        || format!("Random · {}×{}", self.game.size(), self.game.size()),
                         |puzzle| {
                             format!(
-                                "Puzzle {} · {} x {}",
+                                "Puzzle {} · {}×{}",
                                 puzzle + 1,
                                 self.game.size(),
                                 self.game.size()
@@ -153,7 +155,7 @@ impl NonogramApp {
                             ui.selectable_value(
                                 &mut puzzle,
                                 Some(index),
-                                format!("Puzzle {} · {size} × {size}", index + 1),
+                                format!("Puzzle {} · {size}×{size}", index + 1),
                             );
                         }
                     });
@@ -189,19 +191,30 @@ impl NonogramApp {
                 {
                     self.game.redo();
                 }
-                if ui.button("How to play").clicked() {
+                ui.toggle_value(&mut self.show_spans, "Hint").on_hover_text(
+                    "Line spans: filled squares plus the gaps between runs. \
+                     A gold value equal to the board size means the line is forced.",
+                );
+                if ui.button("Help").clicked() {
                     self.dialog = Some(Dialog::Help);
                 }
             });
+            ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
-                ui.label("Mark:");
+                ui.label("Mark");
                 ui.selectable_value(&mut self.mode, Cell::Filled, "■ Fill");
                 ui.selectable_value(&mut self.mode, Cell::Crossed, "× Cross");
                 ui.selectable_value(&mut self.mode, Cell::Unknown, "Erase");
+                ui.separator();
                 ui.label(
-                    RichText::new("Drag to mark a run · right-click to cross")
-                        .small()
-                        .color(theme::MUTED),
+                    RichText::new(format!(
+                        "{}×{} · {} moves",
+                        self.game.size(),
+                        self.game.size(),
+                        self.game.moves()
+                    ))
+                    .small()
+                    .color(theme::MUTED),
                 );
                 if let Source::Random { seed, .. } = self.game.source() {
                     ui.label(
@@ -366,22 +379,22 @@ impl NonogramApp {
     }
 
     fn clue_space(&self) -> (f32, f32) {
-        (
-            self.game
-                .row_clues()
-                .iter()
-                .map(Vec::len)
-                .max()
-                .unwrap_or(1) as f32
-                + 0.5,
-            self.game
-                .column_clues()
-                .iter()
-                .map(Vec::len)
-                .max()
-                .unwrap_or(1) as f32
-                + 0.5,
-        )
+        let extra = if self.show_spans { 0.75 } else { 0.0 };
+        let rows = self
+            .game
+            .row_clues()
+            .iter()
+            .map(Vec::len)
+            .max()
+            .unwrap_or(1) as f32;
+        let columns = self
+            .game
+            .column_clues()
+            .iter()
+            .map(Vec::len)
+            .max()
+            .unwrap_or(1) as f32;
+        (rows + 0.5 + extra, columns + 0.5 + extra)
     }
 
     fn board(&mut self, ui: &mut egui::Ui, cell: f32) {
@@ -400,6 +413,9 @@ impl NonogramApp {
         self.pointer(ui, &response, grid, cell);
         let painter = ui.painter_at(area.expand(2.0));
         let font = FontId::proportional(cell * 0.44);
+        let span_font = FontId::proportional(cell * 0.36);
+        let span_x = -(left - 0.7);
+        let span_y = -(top - 0.7);
         for row in 0..n {
             let clue = &self.game.row_clues()[row];
             let color = if self.game.row_complete(row) {
@@ -414,6 +430,16 @@ impl NonogramApp {
                     value,
                     font.clone(),
                     color,
+                );
+            }
+            if self.show_spans {
+                let span = clue_span(clue);
+                painter.text(
+                    grid.min + Vec2::new(span_x, row as f32 + 0.5) * cell,
+                    Align2::CENTER_CENTER,
+                    format!("({span})"),
+                    span_font.clone(),
+                    if span == n { theme::GOLD } else { theme::MUTED },
                 );
             }
         }
@@ -431,6 +457,16 @@ impl NonogramApp {
                     value,
                     font.clone(),
                     color,
+                );
+            }
+            if self.show_spans {
+                let span = clue_span(clue);
+                painter.text(
+                    grid.min + Vec2::new(col as f32 + 0.5, span_y) * cell,
+                    Align2::CENTER_CENTER,
+                    format!("({span})"),
+                    span_font.clone(),
+                    if span == n { theme::GOLD } else { theme::MUTED },
                 );
             }
         }
@@ -509,7 +545,8 @@ impl NonogramApp {
                         "For example, 2 1 means two filled squares, a gap of at least one, then one filled square. A 0 means the line is empty.",
                         "Click or tap to use the selected mark. Click again to erase it. Drag across squares to mark a whole run at once, then undo it as one step.",
                         "Right-click places an X; right-drag crosses several squares. On touch screens choose Cross.",
-                        "Arrow keys move the blue cursor. Space fills, X crosses, and Backspace / Delete erases.",
+                        "Line spans shows each clue's minimum length: filled squares plus the gaps between runs. If it matches the board size, the whole line is determined and the span turns gold.",
+                        "Arrow keys move the blue cursor. Space fills, X crosses, and Backspace / Delete erases. L toggles line spans.",
                         "Clues dim when the visible filled runs match. A dimmed clue alone does not guarantee those squares are correct.",
                         "Fill the complete picture to win. Crossing every empty square is optional.",
                         "Cmd / Ctrl + Z: Undo. Add Shift to Redo. Every puzzle has one solution.",
@@ -564,10 +601,12 @@ impl NonogramApp {
 
     fn status(&mut self, ui: &mut egui::Ui) {
         if !self.game.is_won() {
-            ui.label(
-                RichText::new("Numbers give filled runs in order. Leave a gap between runs. Drag to mark a run · Space: fill · X: cross · Delete: erase")
-                    .color(theme::MUTED),
-            );
+            let text = if self.show_spans {
+                "Line spans show filled squares plus gaps. Gold spans equal the board size, so the whole line is forced. Hint: hide spans"
+            } else {
+                "Numbers give filled runs in order, with a gap between runs. Drag to mark · Space: fill · X: cross · Delete: erase · Hint: line spans"
+            };
+            ui.label(RichText::new(text).color(theme::MUTED));
             return;
         }
         let source = self.game.source();
@@ -609,7 +648,7 @@ impl NonogramApp {
             .frame(
                 egui::Frame::new()
                     .fill(theme::CHROME)
-                    .inner_margin(egui::Margin::symmetric(24, 16)),
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("nonogram-status")
